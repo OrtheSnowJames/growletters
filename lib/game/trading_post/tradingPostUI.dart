@@ -31,7 +31,7 @@ class _TradingPostState extends State<TradingPost> {
         border: Border.all(
           color: const Color(0xFFD2B48C), // tan color
           width: borderWidth,
-        ), 
+        ),
       ),
       child: Image.asset(assetPath),
     );
@@ -40,26 +40,67 @@ class _TradingPostState extends State<TradingPost> {
 
 // TODO: work on trade
 
+class SingleItemData {
+  String imagePath;
+  String imageDescription;
+  int count;
+
+  SingleItemData({
+    required this.imagePath,
+    required this.imageDescription,
+    required this.count,
+  });
+}
+
+class TradeData {
+  SingleItemData to;
+  SingleItemData item;
+
+  TradeData({required this.to, required this.item});
+}
+
 class Trade extends StatelessWidget {
+  final TradeData tradeData;
+
+  Trade({super.key, required this.tradeData});
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         children: [
-          Expanded(
-            child: Container(
-              height: 4,
-              color: Colors.green,
-              child: Stack(
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Icon(Icons.arrow_right_alt, color: Colors.white),
-                  ),
-                ],
+          SizedBox(height: 10),
+          Row(
+            children: [
+              singleItem(
+                imagePath: tradeData.to.imagePath,
+                description: tradeData.to.imageDescription,
+                count: tradeData.to.count,
               ),
-            ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 4,
+                  color: Colors.green,
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Icon(Icons.arrow_right_alt, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 10),
+              singleItem(
+                imagePath: tradeData.item.imagePath,
+                description: tradeData.item.imageDescription,
+                count: tradeData.item.count,
+              ),
+            ],
           ),
+          SizedBox(height: 10),
         ],
       ),
     );
@@ -75,11 +116,7 @@ class Trade extends StatelessWidget {
         // Image + description
         Column(
           children: [
-            Image.asset(
-              imagePath,
-              width: 50,
-              height: 50,
-            ),
+            Image.asset(imagePath, width: 50, height: 50),
             const SizedBox(height: 4),
             Text(
               description,
