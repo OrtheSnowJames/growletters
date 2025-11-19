@@ -142,7 +142,7 @@ class TradingPostPreviewScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Trading Post Preview'),
       ),
-      body: const TradingPost(),
+      body: TradingPost(inventory: {"banana": 4},),
     );
   }
 }

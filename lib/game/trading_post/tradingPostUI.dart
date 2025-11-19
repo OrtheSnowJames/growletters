@@ -1,6 +1,9 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
+import 'inventory_panel.dart';
+import 'item.dart';
+import 'long_arrow.dart';
 
 Future<Image> solidColorImage(Vector2 size, Color color) async {
   final recorder = ui.PictureRecorder();
@@ -29,12 +32,20 @@ class TradingPost extends StatefulWidget {
 }
 
 class _TradingPostState extends State<TradingPost> {
-  Image? _image1;
-  Image? _image2;
+  Map<String, Item>? _inventory;
+  late final List<TradeDefinition> _tradeDefinitions;
 
   @override
   void initState() {
     super.initState();
+    _tradeDefinitions = [
+      const TradeDefinition(
+        giveItemId: 'banana',
+        giveCount: 1,
+        receiveItemId: 'ananab',
+        receiveCount: 4,
+      ),
+    ];
     _createExampleImages();
   }
 
@@ -44,75 +55,93 @@ class _TradingPostState extends State<TradingPost> {
 
     if (!mounted) return;
     setState(() {
-      _image1 = image1;
-      _image2 = image2;
+      _inventory = {
+        'banana': Item(
+          id: 'banana',
+          image: image1,
+          description: 'banana',
+          count: 5,
+        ),
+        'ananab': Item(
+          id: 'ananab',
+          image: image2,
+          description: 'ananab',
+          count: 1,
+        ),
+      };
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final trade = _example();
-    if (trade == null) {
+    final inventory = _inventory;
+    if (inventory == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return Center(
-      child: Column(
-        children: [
-          Trade(tradeData: _example()!),
-          Trade(tradeData: _example()!),
-        ],
-      ),
-    );
-  }
+    final trades = _tradeDefinitions.map((definition) {
+      final giveItem = inventory[definition.giveItemId]!;
+      final receiveItem = inventory[definition.receiveItemId]!;
+      return TradeData(
+        give: giveItem.copyWith(count: definition.giveCount),
+        receive: receiveItem.copyWith(count: definition.receiveCount),
+        canTrade: giveItem.count >= definition.giveCount,
+        onTrade: () => _performTrade(definition),
+      );
+    }).toList();
 
-  Widget borderedImage(String assetPath, {double borderWidth = 4}) {
-    return Container(
-      padding: EdgeInsets.all(borderWidth),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color(0xFFD2B48C), // tan color
-          width: borderWidth,
+    return Stack(
+      children: [
+        ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemCount: trades.length,
+          itemBuilder: (context, index) => Trade(tradeData: trades[index]),
         ),
-      ),
-      child: Image.asset(assetPath),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: InventoryPanel(inventory: inventory.values.toList()),
+        ),
+      ],
     );
   }
 
-  TradeData? _example() {
-    final image1 = _image1;
-    final image2 = _image2;
-    if (image1 == null || image2 == null) {
-      return null;
+  void _performTrade(TradeDefinition definition) {
+    final inventory = _inventory;
+    if (inventory == null) {
+      return;
     }
-    return TradeData(
-      to: SingleItemData(image: image1, imageDescription: "banana", count: 1),
-      item: SingleItemData(image: image2, imageDescription: "ananab", count: 4),
-    );
+
+    final giveItem = inventory[definition.giveItemId]!;
+    final receiveItem = inventory[definition.receiveItemId]!;
+
+    if (giveItem.count < definition.giveCount) {
+      return;
+    }
+
+    setState(() {
+      giveItem.count -= definition.giveCount;
+      receiveItem.count += definition.receiveCount;
+    });
   }
-}
-
-class SingleItemData {
-  Image image;
-  String imageDescription;
-  int count;
-
-  SingleItemData({
-    required this.image,
-    required this.imageDescription,
-    required this.count,
-  });
 }
 
 class TradeData {
-  SingleItemData to;
-  SingleItemData item;
+  Item give;
+  Item receive;
+  bool canTrade;
+  VoidCallback onTrade;
 
-  TradeData({required this.to, required this.item});
+  TradeData({
+    required this.give,
+    required this.receive,
+    required this.canTrade,
+    required this.onTrade,
+  });
 }
 
 class Trade extends StatelessWidget {
   final TradeData tradeData;
-  // TODO: Make functioning trade button
 
   Trade({super.key, required this.tradeData});
 
@@ -126,30 +155,29 @@ class Trade extends StatelessWidget {
             children: [
               SizedBox(width: 10),
               singleItem(
-                image: tradeData.to.image,
-                description: tradeData.to.imageDescription,
-                count: tradeData.to.count,
+                image: tradeData.give.image,
+                description: tradeData.give.description,
+                count: tradeData.give.count,
+                context: context,
               ),
               SizedBox(width: 10),
               Expanded(
-                child: Container(
-                  height: 4,
-                  color: Colors.green,
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Icon(Icons.arrow_right_alt, color: Colors.white),
-                      ),
-                    ],
+                child: SizedBox(
+                  height: 16,
+                  child: LongArrow(
+                    color: Colors.white,
+                    thickness: 4,
+                    headSize: 16,
+                    maxWidth: MediaQuery.of(context).size.width * 0.6,
                   ),
                 ),
               ),
               SizedBox(width: 10),
               singleItem(
-                image: tradeData.item.image,
-                description: tradeData.item.imageDescription,
-                count: tradeData.item.count,
+                image: tradeData.receive.image,
+                description: tradeData.receive.description,
+                count: tradeData.receive.count,
+                context: context,
               ),
 
               SizedBox(width: 10),
@@ -158,13 +186,17 @@ class Trade extends StatelessWidget {
           SizedBox(height: 10),
 
           ElevatedButton(
-            onPressed: () {},
+            onPressed: tradeData.canTrade ? tradeData.onTrade : null,
             style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.all(Colors.red),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.disabled)
+                    ? Colors.grey
+                    : Colors.green,
+              ),
               foregroundColor: WidgetStateProperty.all(Colors.white),
               padding: WidgetStateProperty.all(EdgeInsets.all(10)),
             ),
-            child: Text("Trade"),
+            child: Text(tradeData.canTrade ? 'Trade' : 'oof'),
           ),
         ],
       ),
@@ -175,14 +207,17 @@ class Trade extends StatelessWidget {
     required Image image,
     required String description,
     required int count,
+    required BuildContext context,
   }) {
+    double height = MediaQuery.of(context).size.height;
     return Row(
       children: [
         // Image + description
         Column(
           children: [
+            SizedBox(height: height * 0.025),
             image,
-            const SizedBox(height: 4),
+            SizedBox(height: height * 0.025),
             Text(
               description,
               style: const TextStyle(color: Colors.white, fontSize: 14),
