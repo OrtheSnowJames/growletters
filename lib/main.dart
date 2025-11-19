@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'question/quizScreen.dart';
+import 'game/trading_post/tradingPostUI.dart';
+import 'question/questionMaker.dart';
+import 'question/questionUI.dart';
 
 void main() {
   runApp(
@@ -31,16 +33,55 @@ class _HomeScreenState extends State<HomeScreen> {
     _yamlContent = rootBundle.loadString("assets/wotd.yaml");
   }
 
-  void _startQuiz(BuildContext context) async {
+  Future<void> _startQuiz(BuildContext context) async {
     final yamlContent = await _yamlContent;
     if (!mounted) return;
+
+    final words = parseWordOfTheDayItems(yamlContent);
+    final questionMaker = QuestionMaker(words: words);
+    final questions = questionMaker.makeQuestions(5);
+
+    final score = await Navigator.push<int>(
+      context,
+      MaterialPageRoute(
+        builder: (routeContext) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Quiz'),
+          ),
+          body: Questions(
+            questions: questions,
+            onFinished: (score) {
+              Navigator.pop(routeContext, score);
+            },
+            emptyState: Builder(
+              builder: (context) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('No questions available.'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted || score == null) return;
+    _updateHighScore(score);
+  }
+
+  void _previewTradingPost(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => QuizScreen(
-          onQuizFinished: _updateHighScore,
-          yamlContent: yamlContent,
-        ),
+        builder: (_) => const TradingPostPreviewScreen(),
       ),
     );
   }
@@ -80,9 +121,28 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => _startQuiz(context),
               child: const Text("Start Quiz"),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _previewTradingPost(context),
+              child: const Text("Preview Trading Post UI"),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class TradingPostPreviewScreen extends StatelessWidget {
+  const TradingPostPreviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Trading Post Preview'),
+      ),
+      body: const TradingPost(),
     );
   }
 }

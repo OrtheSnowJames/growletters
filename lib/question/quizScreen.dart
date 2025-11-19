@@ -13,8 +13,6 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
-  int _currentQuestionIndex = 0;
-  int _score = 0;
   late List<QuestionData> _questions;
 
   @override
@@ -27,44 +25,30 @@ class _QuizScreenState extends State<QuizScreen> {
     _questions = questionMaker.makeQuestions(5);
   }
 
-  void _onQuestionAnswered(bool correct) {
-    setState(() {
-      if (correct) {
-        _score++;
-        _currentQuestionIndex++;
-
-        if (_currentQuestionIndex >= _questions.length) {
-          widget.onQuizFinished?.call(_score);
-        }
-      } else {
-        _score--;
-      }
-    });
+  void _handleQuizFinished(int score) {
+    widget.onQuizFinished?.call(score);
+    Navigator.pop(context);
   }
-
-  bool get _isLastQuestion => _currentQuestionIndex >= _questions.length - 1;
 
   @override
   Widget build(BuildContext context) {
-    if (_currentQuestionIndex >= _questions.length) {
-      // Quiz finished - this shouldn't happen, but just in case
-      return Scaffold(
-        body: Center(
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+    return Scaffold(
+      body: Questions(
+        questions: _questions,
+        onFinished: _handleQuizFinished,
+        emptyState: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('No questions available.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
           ),
         ),
-      );
-    }
-
-    final currentQuestion = _questions[_currentQuestionIndex];
-
-    return Scaffold(
-      body: Question(
-        questionData: currentQuestion,
-        onAnswered: _onQuestionAnswered,
-        isLastQuestion: _isLastQuestion,
       ),
     );
   }

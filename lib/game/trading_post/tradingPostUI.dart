@@ -1,24 +1,65 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:vector_math/vector_math.dart' show Vector2;
+
+Future<Image> solidColorImage(Vector2 size, Color color) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final paint = Paint()..color = color;
+
+  final rect = Rect.fromLTWH(0, 0, size.x, size.y);
+  canvas.drawRect(rect, paint);
+
+  final picture = recorder.endRecording();
+  final uiImage = await picture.toImage(size.x.toInt(), size.y.toInt());
+  return Image.memory(
+    (await uiImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    ))!.buffer.asUint8List(),
+    width: size.x,
+    height: size.y,
+  );
+}
 
 class TradingPost extends StatefulWidget {
+  const TradingPost({super.key});
+
   @override
   State<TradingPost> createState() => _TradingPostState();
 }
 
 class _TradingPostState extends State<TradingPost> {
+  Image? _image1;
+  Image? _image2;
+
+  @override
+  void initState() {
+    super.initState();
+    _createExampleImages();
+  }
+
+  Future<void> _createExampleImages() async {
+    final image1 = await solidColorImage(Vector2.all(20), Colors.green);
+    final image2 = await solidColorImage(Vector2.all(20), Colors.greenAccent);
+
+    if (!mounted) return;
+    setState(() {
+      _image1 = image1;
+      _image2 = image2;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final trade = _example();
+    if (trade == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          SizedBox(height: 20),
-          Text(
-            "Trading Post",
-            style: Theme.of(
-              context,
-            ).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
+        children: [
+          Trade(tradeData: _example()!),
+          Trade(tradeData: _example()!),
         ],
       ),
     );
@@ -36,17 +77,27 @@ class _TradingPostState extends State<TradingPost> {
       child: Image.asset(assetPath),
     );
   }
+
+  TradeData? _example() {
+    final image1 = _image1;
+    final image2 = _image2;
+    if (image1 == null || image2 == null) {
+      return null;
+    }
+    return TradeData(
+      to: SingleItemData(image: image1, imageDescription: "banana", count: 1),
+      item: SingleItemData(image: image2, imageDescription: "ananab", count: 4),
+    );
+  }
 }
 
-// TODO: work on trade
-
 class SingleItemData {
-  String imagePath;
+  Image image;
   String imageDescription;
   int count;
 
   SingleItemData({
-    required this.imagePath,
+    required this.image,
     required this.imageDescription,
     required this.count,
   });
@@ -61,6 +112,7 @@ class TradeData {
 
 class Trade extends StatelessWidget {
   final TradeData tradeData;
+  // TODO: Make functioning trade button
 
   Trade({super.key, required this.tradeData});
 
@@ -72,8 +124,9 @@ class Trade extends StatelessWidget {
           SizedBox(height: 10),
           Row(
             children: [
+              SizedBox(width: 10),
               singleItem(
-                imagePath: tradeData.to.imagePath,
+                image: tradeData.to.image,
                 description: tradeData.to.imageDescription,
                 count: tradeData.to.count,
               ),
@@ -94,20 +147,32 @@ class Trade extends StatelessWidget {
               ),
               SizedBox(width: 10),
               singleItem(
-                imagePath: tradeData.item.imagePath,
+                image: tradeData.item.image,
                 description: tradeData.item.imageDescription,
                 count: tradeData.item.count,
               ),
+
+              SizedBox(width: 10),
             ],
           ),
           SizedBox(height: 10),
+
+          ElevatedButton(
+            onPressed: () {},
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.all(Colors.red),
+              foregroundColor: WidgetStateProperty.all(Colors.white),
+              padding: WidgetStateProperty.all(EdgeInsets.all(10)),
+            ),
+            child: Text("Trade"),
+          ),
         ],
       ),
     );
   }
 
   Widget singleItem({
-    required String imagePath,
+    required Image image,
     required String description,
     required int count,
   }) {
@@ -116,7 +181,7 @@ class Trade extends StatelessWidget {
         // Image + description
         Column(
           children: [
-            Image.asset(imagePath, width: 50, height: 50),
+            image,
             const SizedBox(height: 4),
             Text(
               description,

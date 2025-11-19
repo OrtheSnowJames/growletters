@@ -5,12 +5,14 @@ class StatusPage extends StatefulWidget {
   final String? correctAnswer;
   final bool isLastQuestion;
   final ValueChanged<bool>? onContinue;
+  final bool popParentOnClose;
 
   const StatusPage({
     required this.correct,
     this.correctAnswer,
     this.isLastQuestion = false,
     this.onContinue,
+    this.popParentOnClose = true,
   });
 
   @override
@@ -43,9 +45,11 @@ class _StatusPageState extends State<StatusPage> {
   void _close() {
     if (_canGoBack) {
       widget.onContinue?.call(widget.correct);
-      // Pop back to home screen (pop twice: status page and quiz screen)
-      Navigator.pop(context); // Pop status page
-      Navigator.pop(context); // Pop quiz screen
+      // Pop the status page, optionally closing the parent route as well.
+      Navigator.pop(context);
+      if (widget.popParentOnClose) {
+        Navigator.pop(context);
+      }
     }
   }
 

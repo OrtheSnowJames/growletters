@@ -18,16 +18,142 @@ class QuestionData {
   });
 }
 
+typedef QuestionCompletionBuilder = Widget Function(
+  BuildContext context,
+  int score,
+  VoidCallback restart,
+);
+
+class Questions extends StatefulWidget {
+  const Questions({
+    super.key,
+    required this.questions,
+    this.onFinished,
+    this.emptyState,
+    this.completionBuilder,
+  });
+
+  final List<QuestionData> questions;
+  final ValueChanged<int>? onFinished;
+  final Widget? emptyState;
+  final QuestionCompletionBuilder? completionBuilder;
+
+  @override
+  State<Questions> createState() => _QuestionsState();
+}
+
+class _QuestionsState extends State<Questions> {
+  int _currentQuestionIndex = 0;
+  int _score = 0;
+  bool _hasReportedCompletion = false;
+
+  @override
+  void didUpdateWidget(covariant Questions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.questions != widget.questions) {
+      _resetQuiz();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.questions.isEmpty) {
+      return widget.emptyState ??
+          const Center(child: Text('No questions available.'));
+    }
+
+    if (_currentQuestionIndex >= widget.questions.length) {
+      return widget.completionBuilder?.call(
+            context,
+            _score,
+            _resetQuiz,
+          ) ??
+          _buildDefaultCompletedView(context);
+    }
+
+    final question = widget.questions[_currentQuestionIndex];
+    final isLastQuestion =
+        _currentQuestionIndex >= widget.questions.length - 1;
+
+    return Question(
+      questionData: question,
+      onAnswered: _handleQuestionAnswered,
+      isLastQuestion: isLastQuestion,
+      popParentOnClose: false,
+    );
+  }
+
+  void _handleQuestionAnswered(bool wasCorrect) {
+    setState(() {
+      if (wasCorrect) {
+        _score++;
+        _currentQuestionIndex++;
+      } else {
+        _score--;
+      }
+    });
+
+    if (wasCorrect && _currentQuestionIndex >= widget.questions.length) {
+      _notifyFinished();
+    }
+  }
+
+  void _resetQuiz() {
+    setState(() {
+      _currentQuestionIndex = 0;
+      _score = 0;
+      _hasReportedCompletion = false;
+    });
+  }
+
+  void _notifyFinished() {
+    if (_hasReportedCompletion) {
+      return;
+    }
+    _hasReportedCompletion = true;
+    widget.onFinished?.call(_score);
+  }
+
+  Widget _buildDefaultCompletedView(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Quiz complete!',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Score: $_score / ${widget.questions.length}',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: _resetQuiz,
+            child: const Text('Restart'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class Question extends StatefulWidget {
   const Question({
     super.key,
     required this.questionData,
     this.onAnswered,
     this.isLastQuestion = false,
+    this.popParentOnClose = true,
   });
   final QuestionData questionData;
   final ValueChanged<bool>? onAnswered;
   final bool isLastQuestion;
+  final bool popParentOnClose;
 
   @override
   State<Question> createState() => _QuestionState();
@@ -205,6 +331,7 @@ class _QuestionState extends State<Question> {
           onContinue: (wasCorrect) {
             widget.onAnswered?.call(wasCorrect);
           },
+          popParentOnClose: widget.popParentOnClose,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           // Slide from left for correct, from right for incorrect
