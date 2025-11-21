@@ -1,28 +1,10 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
+import '../solidColorImage.dart';
 import 'inventory_panel.dart';
 import 'item.dart';
+import 'item_registry.dart';
 import 'long_arrow.dart';
-
-Future<Image> solidColorImage(Vector2 size, Color color) async {
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final paint = Paint()..color = color;
-
-  final rect = Rect.fromLTWH(0, 0, size.x, size.y);
-  canvas.drawRect(rect, paint);
-
-  final picture = recorder.endRecording();
-  final uiImage = await picture.toImage(size.x.toInt(), size.y.toInt());
-  return Image.memory(
-    (await uiImage.toByteData(
-      format: ui.ImageByteFormat.png,
-    ))!.buffer.asUint8List(),
-    width: size.x,
-    height: size.y,
-  );
-}
 
 class TradingPost extends StatefulWidget {
   const TradingPost({super.key});
@@ -32,7 +14,7 @@ class TradingPost extends StatefulWidget {
 }
 
 class _TradingPostState extends State<TradingPost> {
-  Map<String, Item>? _inventory;
+  Map<String, int>? _inventoryCounts;
   late final List<TradeDefinition> _tradeDefinitions;
 
   @override
@@ -55,39 +37,47 @@ class _TradingPostState extends State<TradingPost> {
 
     if (!mounted) return;
     setState(() {
-      _inventory = {
+      ItemRegistry.setItems({
         'banana': Item(
           id: 'banana',
           image: image1,
           description: 'banana',
-          count: 5,
         ),
         'ananab': Item(
           id: 'ananab',
           image: image2,
           description: 'ananab',
-          count: 1,
         ),
-      };
+      });
+      _inventoryCounts = {'banana': 5, 'ananab': 1};
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final inventory = _inventory;
-    if (inventory == null) {
+    final counts = _inventoryCounts;
+    if (!ItemRegistry.isInitialized || counts == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    final trades = _tradeDefinitions.map((definition) {
-      final giveItem = inventory[definition.giveItemId]!;
-      final receiveItem = inventory[definition.receiveItemId]!;
-      return TradeData(
-        give: giveItem.copyWith(count: definition.giveCount),
-        receive: receiveItem.copyWith(count: definition.receiveCount),
-        canTrade: giveItem.count >= definition.giveCount,
-        onTrade: () => _performTrade(definition),
-      );
-    }).toList();
+    final trades = _tradeDefinitions.fold<List<TradeData>>([], (list, definition) {
+      final giveItem = ItemRegistry.getById(definition.giveItemId);
+      final receiveItem = ItemRegistry.getById(definition.receiveItemId);
+      if (giveItem == null || receiveItem == null) {
+        return list;
+      }
+      final giveAvailable = counts[definition.giveItemId] ?? 0;
+      return list
+        ..add(
+          TradeData(
+            giveItemId: definition.giveItemId,
+            giveCount: definition.giveCount,
+            receiveItemId: definition.receiveItemId,
+            receiveCount: definition.receiveCount,
+            canTrade: giveAvailable >= definition.giveCount,
+            onTrade: () => _performTrade(definition),
+          ),
+        );
+    });
 
     return Stack(
       children: [
@@ -100,41 +90,44 @@ class _TradingPostState extends State<TradingPost> {
         Positioned(
           right: 16,
           bottom: 16,
-          child: InventoryPanel(inventory: inventory.values.toList()),
+          child: InventoryPanel(items: ItemRegistry.items, counts: counts),
         ),
       ],
     );
   }
 
   void _performTrade(TradeDefinition definition) {
-    final inventory = _inventory;
-    if (inventory == null) {
+    final counts = _inventoryCounts;
+    if (counts == null) {
       return;
     }
 
-    final giveItem = inventory[definition.giveItemId]!;
-    final receiveItem = inventory[definition.receiveItemId]!;
-
-    if (giveItem.count < definition.giveCount) {
+    final giveAvailable = counts[definition.giveItemId] ?? 0;
+    if (giveAvailable < definition.giveCount) {
       return;
     }
 
     setState(() {
-      giveItem.count -= definition.giveCount;
-      receiveItem.count += definition.receiveCount;
+      counts[definition.giveItemId] = giveAvailable - definition.giveCount;
+      counts[definition.receiveItemId] =
+          (counts[definition.receiveItemId] ?? 0) + definition.receiveCount;
     });
   }
 }
 
 class TradeData {
-  Item give;
-  Item receive;
-  bool canTrade;
-  VoidCallback onTrade;
+  final String giveItemId;
+  final int giveCount;
+  final String receiveItemId;
+  final int receiveCount;
+  final bool canTrade;
+  final VoidCallback onTrade;
 
   TradeData({
-    required this.give,
-    required this.receive,
+    required this.giveItemId,
+    required this.giveCount,
+    required this.receiveItemId,
+    required this.receiveCount,
     required this.canTrade,
     required this.onTrade,
   });
@@ -154,11 +147,19 @@ class Trade extends StatelessWidget {
           Row(
             children: [
               SizedBox(width: 10),
-              singleItem(
-                image: tradeData.give.image,
-                description: tradeData.give.description,
-                count: tradeData.give.count,
-                context: context,
+              Builder(
+                builder: (context) {
+                  final item = ItemRegistry.getById(tradeData.giveItemId);
+                  if (item == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return singleItem(
+                    image: item.image,
+                    description: item.description,
+                    count: tradeData.giveCount,
+                    context: context,
+                  );
+                },
               ),
               SizedBox(width: 10),
               Expanded(
@@ -173,11 +174,19 @@ class Trade extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 10),
-              singleItem(
-                image: tradeData.receive.image,
-                description: tradeData.receive.description,
-                count: tradeData.receive.count,
-                context: context,
+              Builder(
+                builder: (context) {
+                  final item = ItemRegistry.getById(tradeData.receiveItemId);
+                  if (item == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return singleItem(
+                    image: item.image,
+                    description: item.description,
+                    count: tradeData.receiveCount,
+                    context: context,
+                  );
+                },
               ),
 
               SizedBox(width: 10),

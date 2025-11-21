@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'item.dart';
 
 class InventoryPanel extends StatelessWidget {
-  const InventoryPanel({super.key, required this.inventory});
+  const InventoryPanel({super.key, required this.items, required this.counts});
 
-  final List<Item> inventory;
+  final ItemCollection items;
+  final Map<String, int> counts;
 
   @override
   Widget build(BuildContext context) {
@@ -28,29 +29,35 @@ class InventoryPanel extends StatelessWidget {
                 ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          ...inventory.map(
-            (item) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(width: 24, height: 24, child: item.image),
-                  const SizedBox(width: 8),
-                  Text(
-                    item.description,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'x${item.count}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+          ...counts.entries.map(
+            (entry) {
+              final item = items[entry.key];
+              if (item == null) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(width: 24, height: 24, child: item.image),
+                    const SizedBox(width: 8),
+                    Text(
+                      item.description,
+                      style: const TextStyle(color: Colors.white),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'x${entry.value}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

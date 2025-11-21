@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:growletters/game/resource_manager/resource_manager.dart';
 import 'game/trading_post/tradingPostUI.dart';
 import 'question/questionMaker.dart';
 import 'question/questionUI.dart';
@@ -45,9 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (routeContext) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Quiz'),
-          ),
+          appBar: AppBar(title: const Text('Quiz')),
           body: Questions(
             questions: questions,
             onFinished: (score) {
@@ -80,9 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _previewTradingPost(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const TradingPostPreviewScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const TradingPostPreviewScreen()),
     );
   }
 
@@ -96,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ResourceManager.preload(context);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -139,10 +137,8 @@ class TradingPostPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Trading Post Preview'),
-      ),
-      body: TradingPost(inventory: {"banana": 4},),
+      appBar: AppBar(title: const Text('Trading Post Preview')),
+      body: const TradingPost(),
     );
   }
 }

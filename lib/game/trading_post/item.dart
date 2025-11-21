@@ -5,23 +5,14 @@ class Item {
     required this.id,
     required this.image,
     required this.description,
-    required this.count,
   });
 
   final String id;
   final Image image;
   final String description;
-  int count;
-
-  Item copyWith({int? count}) {
-    return Item(
-      id: id,
-      image: image,
-      description: description,
-      count: count ?? this.count,
-    );
-  }
 }
+
+typedef ItemCollection = Map<String, Item>;
 
 class TradeDefinition {
   const TradeDefinition({
