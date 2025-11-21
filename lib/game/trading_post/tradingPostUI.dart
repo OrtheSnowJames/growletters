@@ -38,16 +38,8 @@ class _TradingPostState extends State<TradingPost> {
     if (!mounted) return;
     setState(() {
       ItemRegistry.setItems({
-        'banana': Item(
-          id: 'banana',
-          image: image1,
-          description: 'banana',
-        ),
-        'ananab': Item(
-          id: 'ananab',
-          image: image2,
-          description: 'ananab',
-        ),
+        'banana': Item(id: 'banana', image: image1, description: 'banana'),
+        'ananab': Item(id: 'ananab', image: image2, description: 'ananab'),
       });
       _inventoryCounts = {'banana': 5, 'ananab': 1};
     });
@@ -59,24 +51,26 @@ class _TradingPostState extends State<TradingPost> {
     if (!ItemRegistry.isInitialized || counts == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    final trades = _tradeDefinitions.fold<List<TradeData>>([], (list, definition) {
+    final trades = _tradeDefinitions.fold<List<TradeData>>([], (
+      list,
+      definition,
+    ) {
       final giveItem = ItemRegistry.getById(definition.giveItemId);
       final receiveItem = ItemRegistry.getById(definition.receiveItemId);
       if (giveItem == null || receiveItem == null) {
         return list;
       }
       final giveAvailable = counts[definition.giveItemId] ?? 0;
-      return list
-        ..add(
-          TradeData(
-            giveItemId: definition.giveItemId,
-            giveCount: definition.giveCount,
-            receiveItemId: definition.receiveItemId,
-            receiveCount: definition.receiveCount,
-            canTrade: giveAvailable >= definition.giveCount,
-            onTrade: () => _performTrade(definition),
-          ),
-        );
+      return list..add(
+        TradeData(
+          giveItemId: definition.giveItemId,
+          giveCount: definition.giveCount,
+          receiveItemId: definition.receiveItemId,
+          receiveCount: definition.receiveCount,
+          canTrade: giveAvailable >= definition.giveCount,
+          onTrade: () => _performTrade(definition),
+        ),
+      );
     });
 
     return Stack(
@@ -133,35 +127,61 @@ class TradeData {
   });
 }
 
+class SingleItem extends StatelessWidget {
+  final String itemId;
+  final int count;
+
+  const SingleItem({super.key, required this.itemId, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final item = ItemRegistry.getById(itemId);
+    if (item == null) return const SizedBox.shrink();
+
+    final height = MediaQuery.of(context).size.height;
+
+    return Row(
+      children: [
+        Column(
+          children: [
+            SizedBox(height: height * 0.025),
+            item.image,
+            SizedBox(height: height * 0.025),
+            Text(
+              item.description,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ],
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'x$count',
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+      ],
+    );
+  }
+}
+
 class Trade extends StatelessWidget {
   final TradeData tradeData;
 
-  Trade({super.key, required this.tradeData});
+  const Trade({super.key, required this.tradeData});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         children: [
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Row(
             children: [
-              SizedBox(width: 10),
-              Builder(
-                builder: (context) {
-                  final item = ItemRegistry.getById(tradeData.giveItemId);
-                  if (item == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return singleItem(
-                    image: item.image,
-                    description: item.description,
-                    count: tradeData.giveCount,
-                    context: context,
-                  );
-                },
+              const SizedBox(width: 10),
+              SingleItem(
+                itemId: tradeData.giveItemId,
+                count: tradeData.giveCount,
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: SizedBox(
                   height: 16,
@@ -173,27 +193,15 @@ class Trade extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(width: 10),
-              Builder(
-                builder: (context) {
-                  final item = ItemRegistry.getById(tradeData.receiveItemId);
-                  if (item == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return singleItem(
-                    image: item.image,
-                    description: item.description,
-                    count: tradeData.receiveCount,
-                    context: context,
-                  );
-                },
+              const SizedBox(width: 10),
+              SingleItem(
+                itemId: tradeData.receiveItemId,
+                count: tradeData.receiveCount,
               ),
-
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
             ],
           ),
-          SizedBox(height: 10),
-
+          const SizedBox(height: 10),
           ElevatedButton(
             onPressed: tradeData.canTrade ? tradeData.onTrade : null,
             style: ButtonStyle(
@@ -203,45 +211,12 @@ class Trade extends StatelessWidget {
                     : Colors.green,
               ),
               foregroundColor: WidgetStateProperty.all(Colors.white),
-              padding: WidgetStateProperty.all(EdgeInsets.all(10)),
+              padding: WidgetStateProperty.all(const EdgeInsets.all(10)),
             ),
-            child: Text(tradeData.canTrade ? 'Trade' : 'oof'),
+            child: Text(tradeData.canTrade ? 'trade' : 'oof'),
           ),
         ],
       ),
-    );
-  }
-
-  Widget singleItem({
-    required Image image,
-    required String description,
-    required int count,
-    required BuildContext context,
-  }) {
-    double height = MediaQuery.of(context).size.height;
-    return Row(
-      children: [
-        // Image + description
-        Column(
-          children: [
-            SizedBox(height: height * 0.025),
-            image,
-            SizedBox(height: height * 0.025),
-            Text(
-              description,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ],
-        ),
-
-        const SizedBox(width: 8),
-
-        // Count to the right
-        Text(
-          'x$count',
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-        ),
-      ],
     );
   }
 }

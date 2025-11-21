@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 class ResourceManager {
-  static final AssetImage tree1 = const AssetImage('assets/missing_content.png');
-  static final AssetImage tree2 = const AssetImage('assets/missing_content.png');
-  static final AssetImage tree3 = const AssetImage('assets/missing_content.png');
-  static final AssetImage tree4 = const AssetImage('assets/missing_content.png');
-  static final AssetImage tree5 = const AssetImage('assets/missing_content.png');
+  // placeholders
+  static final AssetImage tree1 = const AssetImage('assets/missing_content.jpg');
+  static final AssetImage tree2 = const AssetImage('assets/missing_content.jpg');
+  static final AssetImage tree3 = const AssetImage('assets/missing_content.jpg');
+  static final AssetImage tree4 = const AssetImage('assets/missing_content.jpg');
+  static final AssetImage tree5 = const AssetImage('assets/missing_content.jpg');
 
   static final List<AssetImage> all = [
     tree1, tree2, tree3, tree4, tree5,

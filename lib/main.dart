@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:growletters/game/resource_manager/resource_manager.dart';
+import 'package:growletters/question/questionManager.dart';
+import 'game/main_view/game_tree.dart';
 import 'game/trading_post/tradingPostUI.dart';
 import 'question/questionMaker.dart';
 import 'question/questionUI.dart';
@@ -32,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _yamlContent = rootBundle.loadString("assets/wotd.yaml");
+    _yamlContent.then(QuestionManager.loadQuestions);
   }
 
   Future<void> _startQuiz(BuildContext context) async {
@@ -83,6 +86,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _previewTree(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TreePreviewScreen()),
+    );
+  }
+
   void _updateHighScore(int score) {
     setState(() {
       if (score > _highScore) {
@@ -93,7 +103,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Load Stuff
     ResourceManager.preload(context);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -124,6 +136,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => _previewTradingPost(context),
               child: const Text("Preview Trading Post UI"),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _previewTree(context),
+              child: const Text("Preview Tree"),
+            ),
           ],
         ),
       ),
@@ -139,6 +156,18 @@ class TradingPostPreviewScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Trading Post Preview')),
       body: const TradingPost(),
+    );
+  }
+}
+
+class TreePreviewScreen extends StatelessWidget {
+  const TreePreviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tree Preview')),
+      body: Center(child: Tree(dat: TreeData.basic())),
     );
   }
 }

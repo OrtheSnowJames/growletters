@@ -53,13 +53,6 @@ class _StatusPageState extends State<StatusPage> {
     }
   }
 
-  void _goBackIncorrect() {
-    if (_canGoBack) {
-      widget.onContinue?.call(false);
-      Navigator.pop(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,29 +83,31 @@ class _StatusPageState extends State<StatusPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            if (widget.correct) ...[
-              // Show Continue or Close button for correct answers
-              if (widget.isLastQuestion)
-                ElevatedButton(
-                  onPressed: _canGoBack ? _close : null,
-                  child: const Text("Close"),
-                )
-              else
-                ElevatedButton(
-                  onPressed: _canGoBack ? _continue : null,
-                  child: const Text("Continue"),
-                ),
-            ] else ...[
-              // Show Go Back button for incorrect answers (no close button)
-              ElevatedButton(
-                onPressed: _canGoBack ? _goBackIncorrect : null,
-                child: Text(_canGoBack ? "Go Back" : "Wait 3 seconds…"),
-              ),
-            ],
+            const SizedBox(height: 24),
+            _buildActionButtons(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final continueLabel =
+        _canGoBack ? "Continue" : (widget.correct ? "Continue" : "Wait 3 seconds…");
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ElevatedButton(
+          onPressed: _canGoBack ? _continue : null,
+          child: Text(continueLabel),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: _canGoBack ? _close : null,
+          child: const Text("Close"),
+        ),
+      ],
     );
   }
 }
