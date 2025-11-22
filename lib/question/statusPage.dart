@@ -6,6 +6,7 @@ class StatusPage extends StatefulWidget {
   final bool isLastQuestion;
   final ValueChanged<bool>? onContinue;
   final bool popParentOnClose;
+  final ValueChanged<bool>? onClose;
 
   const StatusPage({
     required this.correct,
@@ -13,6 +14,7 @@ class StatusPage extends StatefulWidget {
     this.isLastQuestion = false,
     this.onContinue,
     this.popParentOnClose = true,
+    this.onClose,
   });
 
   @override
@@ -44,7 +46,7 @@ class _StatusPageState extends State<StatusPage> {
 
   void _close() {
     if (_canGoBack) {
-      widget.onContinue?.call(widget.correct);
+      (widget.onClose ?? widget.onContinue)?.call(widget.correct);
       // Pop the status page, optionally closing the parent route as well.
       Navigator.pop(context);
       if (widget.popParentOnClose) {

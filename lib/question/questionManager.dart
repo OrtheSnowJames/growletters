@@ -11,25 +11,34 @@ class QuestionManager {
       9000,
     ); // big number so that we can get all questions
 
-    questions
+    _unusedQuestions
       ..clear()
       ..addAll(quest);
-    _currentIndex = 0;
-
-    print(questions);
   }
 
   static QuestionData? nextQuestion() {
-    if (questions.isEmpty) {
-      return null;
+    if (_unusedQuestions.isEmpty) {
+      if (_usedQuestions.isEmpty) {
+        return null;
+      }
+      _unusedQuestions.addAll(_usedQuestions);
+      _usedQuestions.clear();
     }
-    final question = questions[_currentIndex % questions.length];
-    _currentIndex++;
+    final question = _unusedQuestions.removeAt(0);
+    _usedQuestions.add(question);
     return question;
   }
 
-  static bool get hasQuestions => questions.isNotEmpty;
+  static void resetUsedQuestions() {
+    if (_usedQuestions.isNotEmpty) {
+      _unusedQuestions.addAll(_usedQuestions);
+      _unusedQuestions.shuffle();
+      _usedQuestions.clear();
+    }
+  }
 
-  static final List<QuestionData> questions = [];
-  static int _currentIndex = 0;
+  static bool get hasQuestions => _unusedQuestions.isNotEmpty;
+
+  static final List<QuestionData> _unusedQuestions = [];
+  static final List<QuestionData> _usedQuestions = [];
 }

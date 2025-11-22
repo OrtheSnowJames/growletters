@@ -147,11 +147,13 @@ class Question extends StatefulWidget {
     super.key,
     required this.questionData,
     this.onAnswered,
+    this.onClosed,
     this.isLastQuestion = false,
     this.popParentOnClose = true,
   });
   final QuestionData questionData;
   final ValueChanged<bool>? onAnswered;
+  final ValueChanged<bool>? onClosed;
   final bool isLastQuestion;
   final bool popParentOnClose;
 
@@ -330,6 +332,9 @@ class _QuestionState extends State<Question> {
           isLastQuestion: widget.isLastQuestion,
           onContinue: (wasCorrect) {
             widget.onAnswered?.call(wasCorrect);
+          },
+          onClose: (wasCorrect) {
+            (widget.onClosed ?? widget.onAnswered)?.call(wasCorrect);
           },
           popParentOnClose: widget.popParentOnClose,
         ),

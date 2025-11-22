@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:growletters/game/resource_manager/resource_manager.dart';
 import 'package:growletters/question/questionManager.dart';
 import 'game/main_view/game_tree.dart';
+import 'game/main_view/main_view.dart';
 import 'game/trading_post/tradingPostUI.dart';
 import 'question/questionMaker.dart';
 import 'question/questionUI.dart';
@@ -93,6 +94,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _previewMainView(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MainViewPreviewScreen()),
+    );
+  }
+
   void _updateHighScore(int score) {
     setState(() {
       if (score > _highScore) {
@@ -141,6 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => _previewTree(context),
               child: const Text("Preview Tree"),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _previewMainView(context),
+              child: const Text("Preview Main View"),
+            ),
           ],
         ),
       ),
@@ -169,5 +182,14 @@ class TreePreviewScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Tree Preview')),
       body: Center(child: Tree(dat: TreeData.basic())),
     );
+  }
+}
+
+class MainViewPreviewScreen extends StatelessWidget {
+  const MainViewPreviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(body: MainView());
   }
 }

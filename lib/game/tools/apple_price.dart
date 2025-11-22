@@ -1,9 +1,10 @@
 import 'dart:math';
 
 int applePrice(double secondsPassed) {
-  return (4 * pow(1.02, secondsPassed)).floor();
+  final price = (4 * pow(1.02, secondsPassed)).floor();
+  return max(1, price);
   /*
-  
+
   0 seconds: 4
 
   30 seconds: ~7
