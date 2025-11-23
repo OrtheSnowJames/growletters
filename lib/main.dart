@@ -6,6 +6,7 @@ import 'game/main_view/game_tree.dart';
 import 'game/main_view/main_view.dart';
 import 'game/trading_post/tradingPostUI.dart';
 import 'question/questionMaker.dart';
+import 'lobby/main_page.dart';
 import 'question/questionUI.dart';
 
 void main() {
@@ -101,6 +102,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _previewLobby(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LobbyPagePreviewScreen()),
+    );
+  }
+
   void _updateHighScore(int score) {
     setState(() {
       if (score > _highScore) {
@@ -154,6 +162,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => _previewMainView(context),
               child: const Text("Preview Main View"),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _previewLobby(context),
+              child: const Text("Preview Lobby Page"),
+            ),
           ],
         ),
       ),
@@ -191,5 +204,17 @@ class MainViewPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(body: MainView());
+  }
+}
+
+class LobbyPagePreviewScreen extends StatelessWidget {
+  const LobbyPagePreviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Lobby Page Preview')),
+      body: const LobbyPage(),
+    );
   }
 }
