@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../trading_post/tradingPostUI.dart';
 import '../tools/apple_price_ticker.dart';
+import '../../theme/palette.dart';
 import 'game_tree.dart';
 
 class MainView extends StatefulWidget {
@@ -65,12 +66,20 @@ class _MainViewState extends State<MainView> {
         child: Column(
           children: [
             Expanded(
-              child: Trees(
-                treeData: _trees,
-                controller: _scrollController,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppPalette.card,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white10),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Trees(
+                  treeData: _trees,
+                  controller: _scrollController,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

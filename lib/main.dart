@@ -8,13 +8,53 @@ import 'game/trading_post/tradingPostUI.dart';
 import 'question/questionMaker.dart';
 import 'lobby/main_page.dart';
 import 'question/questionUI.dart';
+import 'theme/palette.dart';
+import 'lobby/apple_reporter.dart';
 
 void main() {
+  AppleReporter.instance;
+
+  final baseDark = ThemeData.dark(useMaterial3: false);
+  final appTheme = baseDark.copyWith(
+    scaffoldBackgroundColor: AppPalette.background,
+    colorScheme: baseDark.colorScheme.copyWith(
+      primary: AppPalette.accent,
+      secondary: AppPalette.secondaryAccent,
+      surface: AppPalette.card,
+      background: AppPalette.background,
+    ),
+    textTheme: baseDark.textTheme.apply(
+      bodyColor: Colors.blueGrey[50],
+      displayColor: Colors.blueGrey[50],
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppPalette.secondaryAccent,
+        foregroundColor: AppPalette.background,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    appBarTheme: baseDark.appBarTheme.copyWith(
+      backgroundColor: AppPalette.card,
+      elevation: 0,
+      titleTextStyle: baseDark.textTheme.titleLarge?.copyWith(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+
   runApp(
     MaterialApp(
       themeMode: ThemeMode.dark,
-      darkTheme: ThemeData.dark(useMaterial3: false),
-      theme: ThemeData.light(useMaterial3: false),
+      darkTheme: appTheme,
+      theme: appTheme,
       title: 'GrowLetters',
       home: const HomeScreen(),
     ),
@@ -124,52 +164,92 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('GrowLetters'),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Cool Quiz",
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppPalette.card,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    "grow_some_letters",
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AppPalette.accent,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'High Score: $_highScore',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildPrimaryButton(
+                    label: 'Start Quiz',
+                    onPressed: () => _startQuiz(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSecondaryButton(
+                    label: 'Preview Trading Post UI',
+                    onPressed: () => _previewTradingPost(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSecondaryButton(
+                    label: 'Preview Tree',
+                    onPressed: () => _previewTree(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSecondaryButton(
+                    label: 'Preview Main View',
+                    onPressed: () => _previewMainView(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSecondaryButton(
+                    label: 'Preview Lobby Page',
+                    onPressed: () => _previewLobby(context),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'High Score: $_highScore',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => _startQuiz(context),
-              child: const Text("Start Quiz"),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _previewTradingPost(context),
-              child: const Text("Preview Trading Post UI"),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _previewTree(context),
-              child: const Text("Preview Tree"),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _previewMainView(context),
-              child: const Text("Preview Main View"),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _previewLobby(context),
-              child: const Text("Preview Lobby Page"),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPrimaryButton({required String label, required VoidCallback onPressed}) {
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppPalette.accent,
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+      ),
+      child: Text(label),
+    );
+  }
+
+  Widget _buildSecondaryButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 }
@@ -193,7 +273,17 @@ class TreePreviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Tree Preview')),
-      body: Center(child: Tree(dat: TreeData.basic())),
+      body: Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppPalette.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Tree(dat: TreeData.basic()),
+        ),
+      ),
     );
   }
 }

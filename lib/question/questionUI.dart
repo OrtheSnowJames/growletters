@@ -148,14 +148,18 @@ class Question extends StatefulWidget {
     required this.questionData,
     this.onAnswered,
     this.onClosed,
+    this.onEvaluated,
     this.isLastQuestion = false,
     this.popParentOnClose = true,
+    this.showContinueButton = true,
   });
   final QuestionData questionData;
   final ValueChanged<bool>? onAnswered;
   final ValueChanged<bool>? onClosed;
+  final ValueChanged<bool>? onEvaluated;
   final bool isLastQuestion;
   final bool popParentOnClose;
+  final bool showContinueButton;
 
   @override
   State<Question> createState() => _QuestionState();
@@ -323,6 +327,7 @@ class _QuestionState extends State<Question> {
     bool correct =
         response.toLowerCase().trim() ==
         widget.questionData.answer.toLowerCase().trim();
+    widget.onEvaluated?.call(correct);
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -330,6 +335,7 @@ class _QuestionState extends State<Question> {
           correct: correct,
           correctAnswer: widget.questionData.answer,
           isLastQuestion: widget.isLastQuestion,
+          showContinueButton: widget.showContinueButton,
           onContinue: (wasCorrect) {
             widget.onAnswered?.call(wasCorrect);
           },

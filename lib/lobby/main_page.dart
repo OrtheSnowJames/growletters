@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'lobby_api.dart';
+import 'lobby_session_store.dart';
+import 'lobby_room_page.dart';
 
 class LobbyPage extends StatefulWidget {
   const LobbyPage({super.key});
@@ -11,10 +14,10 @@ class _LobbyPageState extends State<LobbyPage> {
   final TextEditingController _playerNameController = TextEditingController();
   final TextEditingController _lobbyCodeController = TextEditingController();
 
-  bool _showLobbyLink = false;
   bool _allowedToBeHost = true;
+  bool _isCreatingLobby = false;
+  bool _isJoiningLobby = false;
   String? _errorMessage;
-  String? _successMessage;
 
   @override
   void initState() {
@@ -130,62 +133,14 @@ class _LobbyPageState extends State<LobbyPage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () {
-                setState(() {
-                  _showLobbyLink = true;
-                  _successMessage = 'Lobby created! Code: ABC123';
-                  _errorMessage = null;
-                });
-              },
+              onPressed: _isCreatingLobby ? null : _handleCreateLobby,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: const Color(0xFF22C55E),
               ),
-              child: const Text('Create Lobby'),
+              child: Text(_isCreatingLobby ? 'Creating...' : 'Create Lobby'),
             ),
           ),
-          if (_showLobbyLink) ...[
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF17223b),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Share this link with players:',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'growletters.app/landing?code=ABC123',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.lightBlueAccent,
-                    ),
-                    child: const Text('Copy'),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -213,24 +168,13 @@ class _LobbyPageState extends State<LobbyPage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () {
-                final hasName = _playerNameController.text.trim().isNotEmpty;
-                setState(() {
-                  if (!hasName) {
-                    _errorMessage = 'Please enter your name before joining.';
-                    _successMessage = null;
-                    return;
-                  }
-                  _errorMessage = null;
-                  _successMessage = 'Joining lobby...';
-                });
-              },
+              onPressed: _isJoiningLobby ? null : _handleJoinLobby,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: Colors.lightBlueAccent,
                 foregroundColor: const Color(0xFF0F172A),
               ),
-              child: const Text('Join Lobby'),
+              child: Text(_isJoiningLobby ? 'Joining...' : 'Join Lobby'),
             ),
           ),
         ],
@@ -247,14 +191,6 @@ class _LobbyPageState extends State<LobbyPage> {
             color: Colors.redAccent,
             onDismiss: () => setState(() => _errorMessage = null),
           ),
-        if (_successMessage != null && _successMessage!.isNotEmpty) ...[
-          if (_errorMessage != null) const SizedBox(height: 12),
-          _StatusBanner(
-            message: _successMessage!,
-            color: const Color(0xFF22C55E),
-            onDismiss: () => setState(() => _successMessage = null),
-          ),
-        ],
       ],
     );
   }
@@ -306,6 +242,71 @@ class _LobbyPageState extends State<LobbyPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       counterText: '',
     );
+  }
+
+  Future<void> _handleCreateLobby() async {
+    final name = _playerNameController.text.trim();
+    if (name.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your name to host.';
+      });
+      return;
+    }
+    setState(() {
+      _isCreatingLobby = true;
+      _errorMessage = null;
+    });
+    try {
+      final session = await LobbyApi.instance.createLobby(name);
+      LobbySessionStore.instance.update(session);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LobbyRoomPage(session: session)),
+      );
+    } catch (err) {
+      setState(() => _errorMessage = err.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingLobby = false);
+      }
+    }
+  }
+
+  Future<void> _handleJoinLobby() async {
+    final name = _playerNameController.text.trim();
+    final code = _lobbyCodeController.text.trim();
+    if (name.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your name before joining.';
+      });
+      return;
+    }
+    if (code.isEmpty) {
+      setState(() {
+        _errorMessage = 'Enter a lobby code.';
+      });
+      return;
+    }
+    setState(() {
+      _isJoiningLobby = true;
+      _errorMessage = null;
+    });
+    try {
+      final session = await LobbyApi.instance.joinLobby(code, name);
+      LobbySessionStore.instance.update(session);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LobbyRoomPage(session: session)),
+      );
+    } catch (err) {
+      setState(() => _errorMessage = err.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isJoiningLobby = false);
+      }
+    }
   }
 }
 

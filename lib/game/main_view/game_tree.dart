@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:growletters/question/questionManager.dart';
 import 'package:growletters/question/questionUI.dart';
 import '../inventory/inventory_manager.dart';
@@ -94,6 +95,7 @@ class _TreeState extends State<Tree> {
               _maybeStartHarvestTimer();
             });
           },
+          isTreeGrown: () => widget.dat.stage == TreeStage.grown,
         ),
       ),
     );
@@ -131,10 +133,12 @@ class _TreeQuestionScreen extends StatefulWidget {
   const _TreeQuestionScreen({
     required this.initialQuestion,
     required this.onResult,
+    required this.isTreeGrown,
   });
 
   final QuestionData initialQuestion;
   final ValueChanged<bool> onResult;
+  final ValueGetter<bool> isTreeGrown;
 
   @override
   State<_TreeQuestionScreen> createState() => _TreeQuestionScreenState();
@@ -142,6 +146,7 @@ class _TreeQuestionScreen extends StatefulWidget {
 
 class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
   late QuestionData _currentQuestion;
+  bool _showContinueButton = true;
 
   @override
   void initState() {
@@ -149,8 +154,19 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
     _currentQuestion = widget.initialQuestion;
   }
 
-  void _handleContinue(bool wasCorrect) {
+  void _handleEvaluated(bool wasCorrect) {
     widget.onResult(wasCorrect);
+    final grown = widget.isTreeGrown();
+    setState(() {
+      _showContinueButton = !grown;
+    });
+  }
+
+  void _handleContinue(bool wasCorrect) {
+    if (!_showContinueButton) {
+      Navigator.of(context).pop();
+      return;
+    }
     final nextQuestion = QuestionManager.nextQuestion();
     if (nextQuestion == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,11 +177,11 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
     }
     setState(() {
       _currentQuestion = nextQuestion;
+      _showContinueButton = true;
     });
   }
 
   void _handleClose(bool wasCorrect) {
-    widget.onResult(wasCorrect);
     Navigator.of(context).pop();
   }
 
@@ -176,8 +192,10 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
       body: Question(
         key: ValueKey(_currentQuestion.question),
         questionData: _currentQuestion,
+        onEvaluated: _handleEvaluated,
         onAnswered: _handleContinue,
         onClosed: _handleClose,
+        showContinueButton: _showContinueButton,
         isLastQuestion: false,
         popParentOnClose: false,
       ),

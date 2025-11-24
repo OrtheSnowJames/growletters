@@ -8,6 +8,7 @@ import 'item.dart';
 import 'item_registry.dart';
 import 'long_arrow.dart';
 import '../tools/apple_price_ticker.dart';
+import '../../theme/palette.dart';
 
 class TradingPost extends StatefulWidget {
   const TradingPost({super.key, this.onTreeSeedPurchased});
@@ -64,6 +65,7 @@ class _TradingPostState extends State<TradingPost> {
     final isReady = ItemRegistry.isInitialized && InventoryManager.isInitialized;
 
     return Scaffold(
+      backgroundColor: AppPalette.background,
       appBar: AppBar(
         title: const Text('Trading Post'),
         leading: IconButton(
@@ -125,18 +127,42 @@ class _TradingPostState extends State<TradingPost> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppPalette.card,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.white10),
+                                  ),
+                                  child: Text(
+                                    'Current trade price: $tradePrice bananas',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                                 Expanded(
-                                  child: ListView.separated(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                      horizontal: 8,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppPalette.card,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white10),
                                     ),
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 12),
-                                    itemCount: trades.length,
-                                    itemBuilder: (context, index) =>
-                                        Trade(tradeData: trades[index]),
+                                    child: ListView.separated(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                        horizontal: 8,
+                                      ),
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 12),
+                                      itemCount: trades.length,
+                                      itemBuilder: (context, index) =>
+                                          Trade(tradeData: trades[index]),
+                                    ),
                                   ),
                                 ),
                               ],

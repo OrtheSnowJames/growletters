@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'item.dart';
+import '../../theme/palette.dart';
 
 class InventoryPanel extends StatelessWidget {
   const InventoryPanel({super.key, required this.items, required this.counts});
@@ -13,8 +14,8 @@ class InventoryPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.75),
-        borderRadius: BorderRadius.circular(12),
+        color: AppPalette.card.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white24),
       ),
       child: Column(

@@ -7,6 +7,7 @@ class StatusPage extends StatefulWidget {
   final ValueChanged<bool>? onContinue;
   final bool popParentOnClose;
   final ValueChanged<bool>? onClose;
+  final bool showContinueButton;
 
   const StatusPage({
     required this.correct,
@@ -15,6 +16,7 @@ class StatusPage extends StatefulWidget {
     this.onContinue,
     this.popParentOnClose = true,
     this.onClose,
+    this.showContinueButton = true,
   });
 
   @override
@@ -100,11 +102,13 @@ class _StatusPageState extends State<StatusPage> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ElevatedButton(
-          onPressed: _canGoBack ? _continue : null,
-          child: Text(continueLabel),
-        ),
-        const SizedBox(height: 12),
+        if (widget.showContinueButton) ...[
+          ElevatedButton(
+            onPressed: _canGoBack ? _continue : null,
+            child: Text(continueLabel),
+          ),
+          const SizedBox(height: 12),
+        ],
         ElevatedButton(
           onPressed: _canGoBack ? _close : null,
           child: const Text("Close"),
