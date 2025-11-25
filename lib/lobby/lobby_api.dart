@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'leave_beacon.dart';
 import 'models.dart';
 
 class LobbyApi {
@@ -82,6 +83,12 @@ class LobbyApi {
       );
       _throwIfNeeded(response);
     } catch (_) {}
+  }
+
+  bool sendLeaveBeacon(String code, String playerId) {
+    final url = _uri('/lobby/$code/leave').toString();
+    final body = jsonEncode({'playerId': playerId});
+    return sendLeaveBeaconPayload(url, body);
   }
 
   Future<void> reportApples(String code, String playerId, int apples) async {

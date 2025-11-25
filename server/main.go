@@ -35,20 +35,19 @@ type lobbyPlayer struct {
 }
 
 type lobby struct {
-	ID          string
-	Code        string
-	HostID      string
-	Started     bool
-	Closed      bool
-	CloseReason string
-	CreatedAt   time.Time
-	Players     map[string]*lobbyPlayer
+	ID        string
+	Code      string
+	HostID    string
+	Started   bool
+	CreatedAt time.Time
+	Players   map[string]*lobbyPlayer
 }
 
 var (
-	sockServer *socketio.Server
-	lobbies    = map[string]*lobby{}
-	lobbyMu    sync.RWMutex
+	sockServer    *socketio.Server
+	lobbies       = map[string]*lobby{}
+	closedLobbies = map[string]string{}
+	lobbyMu       sync.RWMutex
 )
 
 func main() {
@@ -154,15 +153,14 @@ func handleLobbyRoutes(w http.ResponseWriter, r *http.Request) {
 func handleGetLobby(w http.ResponseWriter, r *http.Request, code string) {
 	lobbyMu.RLock()
 	l, ok := lobbies[code]
+	reason, wasClosed := closedLobbies[code]
 	lobbyMu.RUnlock()
 	if !ok {
+		if wasClosed {
+			respondJSON(w, http.StatusGone, map[string]string{"error": reason})
+			return
+		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
-		return
-	}
-	if l.Closed {
-		respondJSON(w, http.StatusGone, map[string]string{
-			"error": l.CloseReason,
-		})
 		return
 	}
 
@@ -172,15 +170,14 @@ func handleGetLobby(w http.ResponseWriter, r *http.Request, code string) {
 func handleLeaderboard(w http.ResponseWriter, r *http.Request, code string) {
 	lobbyMu.RLock()
 	l, ok := lobbies[code]
+	reason, wasClosed := closedLobbies[code]
 	lobbyMu.RUnlock()
 	if !ok {
+		if wasClosed {
+			respondJSON(w, http.StatusGone, map[string]string{"error": reason})
+			return
+		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
-		return
-	}
-	if l.Closed {
-		respondJSON(w, http.StatusGone, map[string]string{
-			"error": l.CloseReason,
-		})
 		return
 	}
 
@@ -204,11 +201,11 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
 	if !ok {
+		if reason, wasClosed := closedLobbies[code]; wasClosed {
+			http.Error(w, reason, http.StatusGone)
+			return
+		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
-		return
-	}
-	if l.Closed {
-		http.Error(w, l.CloseReason, http.StatusGone)
 		return
 	}
 	if l.Started {
@@ -275,8 +272,9 @@ func handleLeaveLobby(w http.ResponseWriter, r *http.Request, code string) {
 		return
 	}
 	if l.HostID == req.PlayerID {
-		l.Closed = true
-		l.CloseReason = "Host disconnected"
+		closedLobbies[code] = "Host disconnected"
+		delete(lobbies, code)
+		log.Println("Host Disconnected")
 	} else {
 		delete(l.Players, req.PlayerID)
 	}
@@ -293,11 +291,11 @@ func handleApplesUpdate(w http.ResponseWriter, r *http.Request, code string) {
 	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
 	if !ok {
+		if reason, wasClosed := closedLobbies[code]; wasClosed {
+			http.Error(w, reason, http.StatusGone)
+			return
+		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
-		return
-	}
-	if l.Closed {
-		http.Error(w, l.CloseReason, http.StatusGone)
 		return
 	}
 	player, ok := l.Players[req.PlayerID]

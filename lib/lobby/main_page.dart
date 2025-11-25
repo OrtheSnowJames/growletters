@@ -62,7 +62,6 @@ class _LobbyPageState extends State<LobbyPage> {
                 const SizedBox(height: 24),
                 _buildStatusMessages(theme),
                 const SizedBox(height: 24),
-                _buildFooter(theme),
               ],
             ),
           ),
@@ -113,6 +112,7 @@ class _LobbyPageState extends State<LobbyPage> {
             controller: _playerNameController,
             style: const TextStyle(color: Colors.white),
             decoration: _inputDecoration('Enter your name'),
+            maxLength: 10,
           ),
         ],
       ),
@@ -192,14 +192,6 @@ class _LobbyPageState extends State<LobbyPage> {
             onDismiss: () => setState(() => _errorMessage = null),
           ),
       ],
-    );
-  }
-
-  Widget _buildFooter(ThemeData theme) {
-    return Text(
-      'This is just a demo of what the landing page could look like. ;)',
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodySmall?.copyWith(color: Colors.white54),
     );
   }
 

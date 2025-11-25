@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import '../game/main_view/main_view.dart';
 import '../theme/palette.dart';
+import 'leave_beacon.dart';
+import 'unload_hook.dart';
 import 'lobby_api.dart';
 import 'models.dart';
 
@@ -24,12 +26,23 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   bool _isStarting = false;
   bool _hostDisconnected = false;
   bool _navigatedToGame = false;
+  UnloadDisposer? _unloadDisposer;
 
   @override
   void initState() {
     super.initState();
     _fetch();
     _ticker = Timer.periodic(const Duration(seconds: 3), (_) => _fetch());
+    if (widget.session.isHost) {
+      _unloadDisposer = registerBeforeUnload(() {
+        if (!_navigatedToGame) {
+          LobbyApi.instance.sendLeaveBeacon(
+            widget.session.lobbyCode,
+            widget.session.playerId,
+          );
+        }
+      });
+    }
   }
 
   Widget _buildHostDisconnected(BuildContext context) {
@@ -48,6 +61,8 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                 textAlign: TextAlign.center,
               ),
             ),
+
+          /*
           Text(
             'Host disconnected',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -55,10 +70,12 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                   fontWeight: FontWeight.bold,
                 ),
           ),
+          */
+          
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Back to Lobby'),
+            child: const Text('Back'),
           ),
         ],
       ),
@@ -68,6 +85,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _unloadDisposer?.call();
     if (!_navigatedToGame) {
       LobbyApi.instance.leaveLobby(
         widget.session.lobbyCode,
@@ -129,22 +147,47 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final info = _info;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lobby'),
+  Future<bool> _confirmExit() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave lobby?'),
+        content: const Text(
+          'This will eradicate you from the lobby. Are you sure you want to continue?',
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetch,
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Leave'),
           ),
         ],
       ),
-      body: _hostDisconnected
-          ? _buildHostDisconnected(context)
-          : Padding(
+    );
+    return result ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _info;
+    return WillPopScope(
+      onWillPop: _confirmExit,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Lobby'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _fetch,
+            ),
+          ],
+        ),
+        body: _hostDisconnected
+            ? _buildHostDisconnected(context)
+            : Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,8 +241,9 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                   child: const Text('Play Game'),
                 ),
               ],
-            ]
-          ],
+            ],
+          ]
+          ),
         ),
       ),
     );
