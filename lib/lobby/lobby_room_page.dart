@@ -33,16 +33,14 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     super.initState();
     _fetch();
     _ticker = Timer.periodic(const Duration(seconds: 3), (_) => _fetch());
-    if (widget.session.isHost) {
-      _unloadDisposer = registerBeforeUnload(() {
-        if (!_navigatedToGame) {
-          LobbyApi.instance.sendLeaveBeacon(
-            widget.session.lobbyCode,
-            widget.session.playerId,
-          );
-        }
-      });
-    }
+    _unloadDisposer = registerBeforeUnload(() {
+      if (!_navigatedToGame) {
+        LobbyApi.instance.sendLeaveBeacon(
+          widget.session.lobbyCode,
+          widget.session.playerId,
+        );
+      }
+    });
   }
 
   Widget _buildHostDisconnected(BuildContext context) {
@@ -71,7 +69,6 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                 ),
           ),
           */
-          
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -179,72 +176,74 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
         appBar: AppBar(
           title: const Text('Lobby'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _fetch,
-            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _fetch),
           ],
         ),
         body: _hostDisconnected
             ? _buildHostDisconnected(context)
             : Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _StatusBanner(
-                  message: _error!,
-                  color: Colors.redAccent,
-                  onDismiss: () => setState(() => _error = null),
-                ),
-              ),
-            if (info != null) ...[
-              _LobbyHeader(info: info),
-              const SizedBox(height: 16),
-              Expanded(
-                child: Row(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: _PlayersCard(info: info)),
-                    const SizedBox(width: 16),
-                    if (info.started) Expanded(child: _LeaderboardCard(info: info)),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _StatusBanner(
+                          message: _error!,
+                          color: Colors.redAccent,
+                          onDismiss: () => setState(() => _error = null),
+                        ),
+                      ),
+                    if (info != null) ...[
+                      _LobbyHeader(info: info),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Expanded(child: _PlayersCard(info: info)),
+                            const SizedBox(width: 16),
+                            if (info.started)
+                              Expanded(child: _LeaderboardCard(info: info)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (widget.session.isHost)
+                        ElevatedButton(
+                          onPressed: info.started || _isStarting
+                              ? null
+                              : _startGame,
+                          child: Text(
+                            info.started ? 'Starting...' : 'Start Game',
+                          ),
+                        )
+                      else ...[
+                        Text(
+                          info.started
+                              ? 'Game is starting…'
+                              : 'Waiting for host to start the game.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        if (info.started)
+                          ElevatedButton(
+                            onPressed: _enterGame,
+                            child: const Text('Enter Game'),
+                          ),
+                      ],
+                      if (widget.session.isHost && info.started) ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _enterGame,
+                          child: const Text('Play Game'),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              if (widget.session.isHost)
-                ElevatedButton(
-                  onPressed: info.started || _isStarting ? null : _startGame,
-                  child: Text(info.started ? 'Starting...' : 'Start Game'),
-                )
-              else ...[
-                Text(
-                  info.started
-                      ? 'Game is starting…'
-                      : 'Waiting for host to start the game.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 12),
-                if (info.started)
-                  ElevatedButton(
-                    onPressed: _enterGame,
-                    child: const Text('Enter Game'),
-                  ),
-              ],
-              if (widget.session.isHost && info.started) ...[
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _enterGame,
-                  child: const Text('Play Game'),
-                ),
-              ],
-            ],
-          ]
-          ),
-        ),
       ),
     );
   }
@@ -272,10 +271,9 @@ class _LobbyHeader extends StatelessWidget {
             children: [
               Text(
                 'Lobby Code',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(color: Colors.blueGrey[200]),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[200]),
               ),
               const SizedBox(height: 8),
               Row(
@@ -283,11 +281,11 @@ class _LobbyHeader extends StatelessWidget {
                   Expanded(
                     child: Text(
                       info.lobbyCode,
-                      style:
-                          Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                letterSpacing: 4,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            letterSpacing: 4,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ),
                   IconButton(
@@ -305,9 +303,9 @@ class _LobbyHeader extends StatelessWidget {
               const SizedBox(height: 12),
               SelectableText(
                 link,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.blueGrey[100],
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.blueGrey[100]),
               ),
             ],
           );
@@ -336,9 +334,9 @@ class _PlayersCard extends StatelessWidget {
         children: [
           Text(
             'Players',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Expanded(
@@ -384,9 +382,9 @@ class _LeaderboardCard extends StatelessWidget {
         children: [
           Text(
             'Leaderboard',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Expanded(

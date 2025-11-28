@@ -11,54 +11,69 @@ import 'question/questionUI.dart';
 import 'theme/palette.dart';
 import 'lobby/apple_reporter.dart';
 
-void main() {
+Future<void> main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
   AppleReporter.instance;
+  await _preloadQuestions();
+  runApp(GrowLettersApp(showDebugHome: args.contains('--debug')));
+}
 
-  final baseDark = ThemeData.dark(useMaterial3: false);
-  final appTheme = baseDark.copyWith(
-    scaffoldBackgroundColor: AppPalette.background,
-    colorScheme: baseDark.colorScheme.copyWith(
-      primary: AppPalette.accent,
-      secondary: AppPalette.secondaryAccent,
-      surface: AppPalette.card,
-      background: AppPalette.background,
-    ),
-    textTheme: baseDark.textTheme.apply(
-      bodyColor: Colors.blueGrey[50],
-      displayColor: Colors.blueGrey[50],
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppPalette.secondaryAccent,
-        foregroundColor: AppPalette.background,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-    appBarTheme: baseDark.appBarTheme.copyWith(
-      backgroundColor: AppPalette.card,
-      elevation: 0,
-      titleTextStyle: baseDark.textTheme.titleLarge?.copyWith(
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  );
+Future<void> _preloadQuestions() async {
+  final yaml = await rootBundle.loadString('assets/wotd.yaml');
+  QuestionManager.loadQuestions(yaml);
+}
 
-  runApp(
-    MaterialApp(
+class GrowLettersApp extends StatelessWidget {
+  const GrowLettersApp({super.key, required this.showDebugHome});
+
+  final bool showDebugHome;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseDark = ThemeData.dark(useMaterial3: false);
+    final appTheme = baseDark.copyWith(
+      scaffoldBackgroundColor: AppPalette.background,
+      colorScheme: baseDark.colorScheme.copyWith(
+        primary: AppPalette.accent,
+        secondary: AppPalette.secondaryAccent,
+        surface: AppPalette.card,
+        background: AppPalette.background,
+      ),
+      textTheme: baseDark.textTheme.apply(
+        bodyColor: Colors.blueGrey[50],
+        displayColor: Colors.blueGrey[50],
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppPalette.secondaryAccent,
+          foregroundColor: AppPalette.background,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      appBarTheme: baseDark.appBarTheme.copyWith(
+        backgroundColor: AppPalette.card,
+        elevation: 0,
+        titleTextStyle: baseDark.textTheme.titleLarge?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+
+    return MaterialApp(
       themeMode: ThemeMode.dark,
       darkTheme: appTheme,
       theme: appTheme,
       title: 'GrowLetters',
-      home: const HomeScreen(),
-    ),
-  );
+      home: showDebugHome ? const HomeScreen() : const LobbyPage(),
+    );
+  }
 }
 
 class HomeScreen extends StatefulWidget {
