@@ -74,7 +74,7 @@ class _LobbyPageState extends State<LobbyPage> {
     return Column(
       children: [
         Text(
-          'grow_some_letters',
+          'grow_bananas',
           textAlign: TextAlign.center,
           style: theme.textTheme.displaySmall?.copyWith(
             color: const Color(0xFF4ADE80),
