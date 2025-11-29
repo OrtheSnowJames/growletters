@@ -28,6 +28,34 @@ class _TreeState extends State<Tree> {
   Timer? _harvestTimer;
   int _bananas = 0;
 
+  AssetImage get _stageImage {
+    switch (widget.dat.stage) {
+      case TreeStage.seed:
+        return ResourceManager.tree1;
+      case TreeStage.sprout:
+        return ResourceManager.tree2;
+      case TreeStage.branchy:
+        return ResourceManager.tree3;
+      case TreeStage.sapling:
+        return ResourceManager.tree4;
+      case TreeStage.grown:
+        return ResourceManager.tree5;
+    }
+  }
+
+  AssetImage get _currentTreeImage {
+    if (widget.dat.stage != TreeStage.grown) {
+      return _stageImage;
+    }
+    if (_bananas == 0) {
+      return ResourceManager.grownNoBananas;
+    }
+    if (_bananas == 1) {
+      return ResourceManager.grownOneBanana;
+    }
+    return ResourceManager.grownManyBananas;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +74,15 @@ class _TreeState extends State<Tree> {
       child: Column(
         children: [
           GestureDetector(
-            child: Image(image: ResourceManager.all[widget.dat.stage.index], width: 100, height: 100,),
+            child: SizedBox(
+              width: 100,
+              height: 100,
+              child: Image(
+                image: _currentTreeImage,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.none,
+              ),
+            ),
             onTapUp: (_) => _onTapUp(context),
           ),
           Text(

@@ -4,6 +4,7 @@ class InventoryManager {
   static final ValueNotifier<Map<String, int>> _countsNotifier =
       ValueNotifier<Map<String, int>>({});
   static bool _initialized = false;
+  static Map<String, int>? _initialCounts;
 
   static ValueListenable<Map<String, int>> get listenable => _countsNotifier;
 
@@ -12,6 +13,7 @@ class InventoryManager {
   static bool get isInitialized => _initialized;
 
   static void initializeIfEmpty(Map<String, int> initialCounts) {
+    _initialCounts = Map<String, int>.from(initialCounts);
     if (_initialized && _countsNotifier.value.isNotEmpty) {
       return;
     }
@@ -39,5 +41,15 @@ class InventoryManager {
     }
     addItem(id, -amount);
     return true;
+  }
+
+  static void reset() {
+    if (_initialCounts == null) {
+      _countsNotifier.value = {};
+      _initialized = false;
+      return;
+    }
+    _countsNotifier.value = Map<String, int>.from(_initialCounts!);
+    _initialized = true;
   }
 }

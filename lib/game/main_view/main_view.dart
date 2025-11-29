@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../trading_post/tradingPostUI.dart';
 import '../tools/apple_price_ticker.dart';
+import '../inventory/inventory_manager.dart';
 import '../../theme/palette.dart';
 import 'game_tree.dart';
 
@@ -13,8 +14,10 @@ class MainView extends StatefulWidget {
 }
 
 class _MainViewState extends State<MainView> {
-  final List<TreeData> _trees =
-      List<TreeData>.generate(10, (_) => TreeData.basic());
+  final List<TreeData> _trees = List<TreeData>.generate(
+    10,
+    (_) => TreeData.basic(),
+  );
 
   final ScrollController _scrollController = ScrollController();
   double _currentOffset = 0;
@@ -29,6 +32,12 @@ class _MainViewState extends State<MainView> {
   @override
   void dispose() {
     _priceTicker.detach();
+    if (!_priceTicker.hasListeners) {
+      _priceTicker.reset();
+    }
+    if (InventoryManager.isInitialized) {
+      InventoryManager.reset();
+    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -50,9 +59,8 @@ class _MainViewState extends State<MainView> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TradingPost(
-          onTreeSeedPurchased: _handleTreeSeedPurchase,
-        ),
+        builder: (_) =>
+            TradingPost(onTreeSeedPurchased: _handleTreeSeedPurchase),
       ),
     );
   }
@@ -73,10 +81,7 @@ class _MainViewState extends State<MainView> {
                   border: Border.all(color: Colors.white10),
                 ),
                 padding: const EdgeInsets.all(12),
-                child: Trees(
-                  treeData: _trees,
-                  controller: _scrollController,
-                ),
+                child: Trees(treeData: _trees, controller: _scrollController),
               ),
             ),
             const SizedBox(height: 16),
@@ -103,7 +108,7 @@ class _MainViewState extends State<MainView> {
         ),
       ),
     );
-}
+  }
 
   void _handleTreeSeedPurchase() {
     if (!mounted) return;
@@ -125,8 +130,7 @@ class Trees extends StatelessWidget {
       builder: (context, constraints) {
         const double itemWidth = 160;
         const double itemHeight = 220;
-        final rows =
-            math.max(1, (constraints.maxHeight / itemHeight).floor());
+        final rows = math.max(1, (constraints.maxHeight / itemHeight).floor());
 
         return GridView.builder(
           controller: controller,
