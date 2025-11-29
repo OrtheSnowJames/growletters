@@ -46,3 +46,4 @@ app.*.map.json
 
 # Not very big PNGs
 /assets/*.png
+!/assets/seed.png

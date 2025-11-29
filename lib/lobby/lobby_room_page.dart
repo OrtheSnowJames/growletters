@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../game/main_view/main_view.dart';
 import '../theme/palette.dart';
-import 'leave_beacon.dart';
+//import 'leave_beacon.dart';
 import 'unload_hook.dart';
 import 'lobby_api.dart';
 import 'models.dart';

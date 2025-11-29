@@ -67,6 +67,7 @@ flutter:
   assets:
     - assets/wotd.yaml
     - assets/missing_content.jpg
+    # Tree Stuff
     - assets/sprout.aseprite
     - assets/sprout.png
     - assets/branchy.aseprite
@@ -76,9 +77,15 @@ flutter:
     - assets/grown.aseprite
     - assets/grown.png
     - assets/banana.aseprite
-    - assets/banana.png
+    - assets/one_banana.png
     - assets/bananas.aseprite
     - assets/bananas.png
+    - assets/seed.png
+    # Items
+    - assets/apple.png
+    - assets/banana.png
+
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:growletters/game/tools/add_commas.dart';
-import 'package:vector_math/vector_math.dart' show Vector2;
-import '../solidColorImage.dart';
 import '../inventory/inventory_manager.dart';
 import 'inventory_panel.dart';
 import 'item.dart';
@@ -9,6 +7,8 @@ import 'item_registry.dart';
 import 'long_arrow.dart';
 import '../tools/apple_price_ticker.dart';
 import '../../theme/palette.dart';
+
+const double _tradeItemImageSize = 72;
 
 class TradingPost extends StatefulWidget {
   const TradingPost({super.key, this.onTreeSeedPurchased});
@@ -39,16 +39,20 @@ class _TradingPostState extends State<TradingPost> {
   }
 
   Future<void> _createExampleImages() async {
-    final image1 = await solidColorImage(Vector2.all(20), Colors.green);
-    final image2 = await solidColorImage(Vector2.all(20), Colors.red);
-    final image3 = await solidColorImage(Vector2.all(20), Colors.brown);
+    final image1 = _buildItemImage('assets/banana.png');
+    final image2 = _buildItemImage('assets/apple.png');
+    final image3 = _buildItemImage('assets/seed.png');
 
     if (!mounted) return;
     setState(() {
       ItemRegistry.setItems({
         'banana': Item(id: 'banana', image: image1, description: 'banana'),
         'ananab': Item(id: 'ananab', image: image2, description: 'apple'),
-        'tree_seed': Item(id: 'tree_seed', image: image3, description: 'tree seed'),
+        'tree_seed': Item(
+          id: 'tree_seed',
+          image: image3,
+          description: 'tree seed',
+        ),
       });
       InventoryManager.initializeIfEmpty({'banana': 5, 'ananab': 1});
     });
@@ -62,7 +66,8 @@ class _TradingPostState extends State<TradingPost> {
 
   @override
   Widget build(BuildContext context) {
-    final isReady = ItemRegistry.isInitialized && InventoryManager.isInitialized;
+    final isReady =
+        ItemRegistry.isInitialized && InventoryManager.isInitialized;
 
     return Scaffold(
       backgroundColor: AppPalette.background,
@@ -76,119 +81,114 @@ class _TradingPostState extends State<TradingPost> {
       body: !isReady
           ? const Center(child: CircularProgressIndicator())
           : _priceTicker.price == null
-              ? const Center(child: CircularProgressIndicator())
-              : ValueListenableBuilder<int>(
-                  valueListenable: _priceTicker.price!,
-                  builder: (context, tradePrice, _) {
-                    return ValueListenableBuilder<Map<String, int>>(
-                      valueListenable: InventoryManager.listenable,
-                      builder: (context, counts, __) {
-                        final trades = _tradeDefinitions.fold<List<TradeData>>([], (
+          ? const Center(child: CircularProgressIndicator())
+          : ValueListenableBuilder<int>(
+              valueListenable: _priceTicker.price!,
+              builder: (context, tradePrice, _) {
+                return ValueListenableBuilder<Map<String, int>>(
+                  valueListenable: InventoryManager.listenable,
+                  builder: (context, counts, __) {
+                    final trades =
+                        _tradeDefinitions.fold<List<TradeData>>([], (
                           list,
                           definition,
                         ) {
-                          final giveItem =
-                              ItemRegistry.getById(definition.giveItemId);
-                          final receiveItem =
-                              ItemRegistry.getById(definition.receiveItemId);
+                          final giveItem = ItemRegistry.getById(
+                            definition.giveItemId,
+                          );
+                          final receiveItem = ItemRegistry.getById(
+                            definition.receiveItemId,
+                          );
                           if (giveItem == null || receiveItem == null) {
                             return list;
                           }
                           final giveAvailable =
                               counts[definition.giveItemId] ?? 0;
-                          return list
-                            ..add(
-                              TradeData(
-                                giveItemId: definition.giveItemId,
-                                giveCount: tradePrice,
-                                receiveItemId: definition.receiveItemId,
-                                receiveCount: definition.receiveCount,
-                                canTrade: giveAvailable >= tradePrice,
-                                onTrade: () => _performTrade(
-                                  definition,
-                                  tradePrice,
-                                ),
-                              ),
-                            );
-                        })
-                          ..add(
+                          return list..add(
                             TradeData(
-                              giveItemId: 'ananab',
-                              giveCount: 1,
-                              receiveItemId: 'tree_seed',
-                              receiveCount: 1,
-                              canTrade: (counts['ananab'] ?? 0) >= 1,
-                              onTrade: _performTreeSeedTrade,
+                              giveItemId: definition.giveItemId,
+                              giveCount: tradePrice,
+                              receiveItemId: definition.receiveItemId,
+                              receiveCount: definition.receiveCount,
+                              canTrade: giveAvailable >= tradePrice,
+                              onTrade: () =>
+                                  _performTrade(definition, tradePrice),
                             ),
                           );
+                        })..add(
+                          TradeData(
+                            giveItemId: 'ananab',
+                            giveCount: 1,
+                            receiveItemId: 'tree_seed',
+                            receiveCount: 1,
+                            canTrade: (counts['ananab'] ?? 0) >= 1,
+                            onTrade: _performTreeSeedTrade,
+                          ),
+                        );
 
-                        return Stack(
+                    return Stack(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppPalette.card,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white10),
-                                  ),
-                                  child: Text(
-                                    'Current trade price: $tradePrice bananas',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: AppPalette.card,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: Colors.white10),
-                                    ),
-                                    child: ListView.separated(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                        horizontal: 8,
-                                      ),
-                                      separatorBuilder: (_, __) =>
-                                          const SizedBox(height: 12),
-                                      itemCount: trades.length,
-                                      itemBuilder: (context, index) =>
-                                          Trade(tradeData: trades[index]),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppPalette.card,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.white10),
+                              ),
+                              child: Text(
+                                'Current trade price: $tradePrice bananas',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
                             ),
-                            Positioned(
-                              right: 16,
-                              bottom: 16,
-                              child: InventoryPanel(
-                                items: ItemRegistry.items,
-                                counts: counts,
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppPalette.card,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white10),
+                                ),
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 8,
+                                  ),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 12),
+                                  itemCount: trades.length,
+                                  itemBuilder: (context, index) =>
+                                      Trade(tradeData: trades[index]),
+                                ),
                               ),
                             ),
                           ],
-                        );
-                      },
+                        ),
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: InventoryPanel(
+                            items: ItemRegistry.items,
+                            counts: counts,
+                          ),
+                        ),
+                      ],
                     );
                   },
-                ),
+                );
+              },
+            ),
     );
   }
 
   void _performTrade(TradeDefinition definition, int price) {
-    final success = InventoryManager.spendItem(
-      definition.giveItemId,
-      price,
-    );
+    final success = InventoryManager.spendItem(definition.giveItemId, price);
     if (!success) {
       return;
     }
@@ -201,6 +201,14 @@ class _TradingPostState extends State<TradingPost> {
       return;
     }
     widget.onTreeSeedPurchased?.call();
+  }
+
+  Image _buildItemImage(String assetPath) {
+    return Image.asset(
+      assetPath,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.none,
+    );
   }
 }
 
@@ -233,25 +241,35 @@ class SingleItem extends StatelessWidget {
     final item = ItemRegistry.getById(itemId);
     if (item == null) return const SizedBox.shrink();
 
-    final height = MediaQuery.of(context).size.height;
-
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        SizedBox(
+          width: _tradeItemImageSize,
+          height: _tradeItemImageSize,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: item.image,
+          ),
+        ),
+        const SizedBox(width: 12),
         Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: height * 0.025),
-            item.image,
-            SizedBox(height: height * 0.025),
             Text(
               item.description,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'x${addCommas(count)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'x${addCommas(count)}',
-          style: const TextStyle(color: Colors.white, fontSize: 16),
         ),
       ],
     );

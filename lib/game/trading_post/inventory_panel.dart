@@ -41,7 +41,14 @@ class InventoryPanel extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(width: 24, height: 24, child: item.image),
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        child: item.image,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       item.description,

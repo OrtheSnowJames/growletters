@@ -27,10 +27,12 @@ class _MainViewState extends State<MainView> {
   void initState() {
     super.initState();
     _priceTicker.attach();
+    _scrollController.addListener(_handleScrollChanged);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScrollChanged);
     _priceTicker.detach();
     if (!_priceTicker.hasListeners) {
       _priceTicker.reset();
@@ -53,6 +55,12 @@ class _MainViewState extends State<MainView> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  void _handleScrollChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _openTradingPost() {
@@ -85,24 +93,35 @@ class _MainViewState extends State<MainView> {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => _scrollBy(-300),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: _openTradingPost,
-                  child: const Text('Trading Post'),
-                ),
-                const SizedBox(width: 20),
-                IconButton(
-                  icon: const Icon(Icons.arrow_forward),
-                  onPressed: () => _scrollBy(300),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final canScrollBack = _scrollController.hasClients &&
+                    _scrollController.position.pixels > 0;
+                final canScrollForward = _scrollController.hasClients &&
+                    _scrollController.position.pixels <
+                        _scrollController.position.maxScrollExtent;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (canScrollBack)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => _scrollBy(-300),
+                      ),
+                    if (canScrollBack) const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: _openTradingPost,
+                      child: const Text('Trading Post'),
+                    ),
+                    if (canScrollForward) const SizedBox(width: 20),
+                    if (canScrollForward)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward),
+                        onPressed: () => _scrollBy(300),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),
