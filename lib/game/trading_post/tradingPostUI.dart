@@ -158,23 +158,37 @@ class _TradingPostState extends State<TradingPost> {
                             ),
                             const SizedBox(height: 12),
                             Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppPalette.card,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white10),
-                                ),
-                                child: ListView.separated(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                    horizontal: 8,
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: AppPalette.card,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: Colors.white10),
+                                      ),
+                                      child: ListView.separated(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                          horizontal: 8,
+                                        ),
+                                        separatorBuilder: (_, __) =>
+                                            const SizedBox(height: 12),
+                                        itemCount: trades.length,
+                                        itemBuilder: (context, index) =>
+                                            Trade(tradeData: trades[index]),
+                                      ),
+                                    ),
                                   ),
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 12),
-                                  itemCount: trades.length,
-                                  itemBuilder: (context, index) =>
-                                      Trade(tradeData: trades[index]),
-                                ),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () => Navigator.of(context).pop(),
+                                      child: const Text('Back to Game'),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
