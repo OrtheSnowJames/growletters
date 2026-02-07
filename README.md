@@ -41,13 +41,13 @@ This game teaches kids vocabulary. It also teaches them the unstable economics o
 Clients can choose to be a host or a player in the lobby.
 
 The host:
-    - shares the join code
-    - can kick people
-    - sets the time limit
-    - starts the game
+- shares the join code
+- can kick people
+- sets the time limit
+- starts the game
 
 The players:
-    - play the game
+- play the game
 
 When you enter the game, you need to click on the little seeds and answer questions to grow them into big trees.
 The big trees (at stage 5) produce bananas. You can harvest these by clicking on the tree.
