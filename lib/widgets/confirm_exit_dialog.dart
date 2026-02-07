@@ -40,3 +40,19 @@ Future<bool> showLobbyExitDialog(
   );
   return result ?? false;
 }
+
+Future<void> showKickedDialog(BuildContext context) async {
+  await showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Kicked'),
+      content: const Text('You have been kicked from the lobby.'),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('ok :('),
+        ),
+      ],
+    ),
+  );
+}

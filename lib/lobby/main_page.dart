@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'lobby_api.dart';
 import 'lobby_session_store.dart';
 import 'lobby_room_page.dart';
+import '../widgets/confirm_exit_dialog.dart';
 
 class LobbyPage extends StatefulWidget {
   const LobbyPage({super.key});
@@ -13,6 +14,7 @@ class LobbyPage extends StatefulWidget {
 class _LobbyPageState extends State<LobbyPage> {
   final TextEditingController _playerNameController = TextEditingController();
   final TextEditingController _lobbyCodeController = TextEditingController();
+  late final VoidCallback _kickedListener;
 
   bool _hostingOptionsOn = false;
   bool _isCreatingLobby = false;
@@ -27,10 +29,20 @@ class _LobbyPageState extends State<LobbyPage> {
       _lobbyCodeController.text = codeFromUrl.toUpperCase();
       _hostingOptionsOn = false;
     }
+    _kickedListener = () {
+      final message = LobbySessionStore.instance.kickedMessage.value;
+      if (message == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showKickedDialog(context);
+        LobbySessionStore.instance.clearKicked();
+      });
+    };
+    LobbySessionStore.instance.kickedMessage.addListener(_kickedListener);
   }
 
   @override
   void dispose() {
+    LobbySessionStore.instance.kickedMessage.removeListener(_kickedListener);
     _playerNameController.dispose();
     _lobbyCodeController.dispose();
     super.dispose();

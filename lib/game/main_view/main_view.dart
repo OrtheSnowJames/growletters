@@ -120,6 +120,13 @@ class _MainViewState extends State<MainView> {
     try {
       final info = await LobbyApi.instance.fetchLobby(session.lobbyCode);
       if (!mounted) return;
+      final stillInLobby = info.players.any(
+        (player) => player.id == session.playerId,
+      );
+      if (!stillInLobby) {
+        await _forceReturnToLobby(showDialog: true);
+        return;
+      }
       if (!info.started) {
         _navigateToResults(session);
         return;
@@ -130,6 +137,8 @@ class _MainViewState extends State<MainView> {
       if (DateTime.now().toUtc().isAfter(endAt)) {
         _navigateToResults(session);
       }
+    } on LobbyClosedException {
+      await _forceReturnToLobby(showDialog: true);
     } catch (_) {
       // Ignore polling failures.
     } finally {
@@ -144,6 +153,15 @@ class _MainViewState extends State<MainView> {
       MaterialPageRoute(builder: (_) => LobbyRoomPage(session: session)),
       (route) => route.isFirst,
     );
+  }
+
+  Future<void> _forceReturnToLobby({bool showDialog = false}) async {
+    if (!mounted) return;
+    if (showDialog) {
+      LobbySessionStore.instance.markKicked();
+    }
+    LobbySessionStore.instance.clear();
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   void _openTradingPost() {

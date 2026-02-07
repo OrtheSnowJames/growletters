@@ -119,6 +119,13 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     try {
       final info = await LobbyApi.instance.fetchLobby(widget.session.lobbyCode);
       if (!mounted) return;
+      final stillInLobby = info.players.any(
+        (player) => player.id == widget.session.playerId,
+      );
+      if (!stillInLobby) {
+        await _forceReturnToLobby(showDialog: true);
+        return;
+      }
       if (!info.started) {
         _localStartedAt = null;
         if (_localEndedAt == null && info.startedAt != null) {
@@ -141,11 +148,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
       _scheduleAutoEndIfNeeded(info);
     } on LobbyClosedException catch (err) {
       if (!mounted) return;
-      _ticker?.cancel();
-      setState(() {
-        _hostDisconnected = true;
-        _error = err.message;
-      });
+      await _forceReturnToLobby(showDialog: true);
     } catch (err) {
       if (!mounted) return;
       setState(() {
@@ -333,6 +336,17 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
         widget.session.playerId,
       );
     } catch (_) {}
+    LobbySessionStore.instance.clear();
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _forceReturnToLobby({bool showDialog = false}) async {
+    if (_isExiting) return;
+    _isExiting = true;
+    if (showDialog) {
+      LobbySessionStore.instance.markKicked();
+    }
     LobbySessionStore.instance.clear();
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);

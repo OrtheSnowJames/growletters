@@ -8,6 +8,7 @@ class LobbySessionStore {
   static final LobbySessionStore instance = LobbySessionStore._();
 
   final ValueNotifier<LobbySession?> notifier = ValueNotifier<LobbySession?>(null);
+  final ValueNotifier<String?> kickedMessage = ValueNotifier<String?>(null);
 
   LobbySession? get current => notifier.value;
 
@@ -17,5 +18,13 @@ class LobbySessionStore {
 
   void clear() {
     notifier.value = null;
+  }
+
+  void markKicked([String message = 'You have been removed from the lobby.']) {
+    kickedMessage.value = message;
+  }
+
+  void clearKicked() {
+    kickedMessage.value = null;
   }
 }
