@@ -14,7 +14,7 @@ class _LobbyPageState extends State<LobbyPage> {
   final TextEditingController _playerNameController = TextEditingController();
   final TextEditingController _lobbyCodeController = TextEditingController();
 
-  bool _allowedToBeHost = true;
+  bool _hostingOptionsOn = false;
   bool _isCreatingLobby = false;
   bool _isJoiningLobby = false;
   String? _errorMessage;
@@ -25,7 +25,7 @@ class _LobbyPageState extends State<LobbyPage> {
     final codeFromUrl = Uri.base.queryParameters['code'];
     if (codeFromUrl != null && codeFromUrl.isNotEmpty) {
       _lobbyCodeController.text = codeFromUrl.toUpperCase();
-      _allowedToBeHost = false;
+      _hostingOptionsOn = false;
     }
   }
 
@@ -42,31 +42,58 @@ class _LobbyPageState extends State<LobbyPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(theme),
-                const SizedBox(height: 32),
-                _buildNameField(theme),
-                const SizedBox(height: 24),
-                if (_allowedToBeHost) ...[
-                  _buildHostCard(theme),
-                  const SizedBox(height: 16),
-                ],
-                _buildJoinCard(theme),
-                const SizedBox(height: 24),
-                _buildStatusMessages(theme),
-                const SizedBox(height: 24),
-              ],
+      body: Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(theme),
+                    const SizedBox(height: 32),
+                    _buildNameField(theme),
+                    const SizedBox(height: 24),
+                    if (_hostingOptionsOn) ...[
+                      _buildHostCard(theme),
+                    ] else ...[
+                      _buildJoinCard(theme),
+                    ],
+                    const SizedBox(height: 24),
+                    _buildStatusMessages(theme),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildHostingToggleButton(theme),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildHostingToggleButton(ThemeData theme) {
+    final hosting = _hostingOptionsOn;
+    return ElevatedButton.icon(
+      icon: Icon(hosting ? Icons.person_off : Icons.person_add_alt_1),
+      label: Text(hosting ? 'Join A Game' : 'Host A Game'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: hosting ? Colors.blueGrey[700] : const Color(0xFF22C55E),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      onPressed: () => setState(() => _hostingOptionsOn = !hosting),
     );
   }
 
@@ -84,7 +111,7 @@ class _LobbyPageState extends State<LobbyPage> {
         ),
         const SizedBox(height: 12),
         Text(
-          _allowedToBeHost
+          _hostingOptionsOn
               ? 'Choose your role to get started'
               : 'Enter your name',
           textAlign: TextAlign.center,

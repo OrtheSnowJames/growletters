@@ -11,9 +11,10 @@ import '../../theme/palette.dart';
 const double _tradeItemImageSize = 72;
 
 class TradingPost extends StatefulWidget {
-  const TradingPost({super.key, this.onTreeSeedPurchased});
+  const TradingPost({super.key, this.onTreeSeedPurchased, this.onExit});
 
   final VoidCallback? onTreeSeedPurchased;
+  final Future<void> Function()? onExit;
 
   @override
   State<TradingPost> createState() => _TradingPostState();
@@ -74,8 +75,16 @@ class _TradingPostState extends State<TradingPost> {
       appBar: AppBar(
         title: const Text('Trading Post'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.exit_to_app),
+          onPressed: () async {
+            final handler = widget.onExit;
+            if (handler != null) {
+              await handler();
+              return;
+            }
+            if (!mounted) return;
+            Navigator.of(context).pop();
+          },
         ),
       ),
       body: !isReady

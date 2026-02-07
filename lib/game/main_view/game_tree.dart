@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:growletters/question/questionManager.dart';
 import 'package:growletters/question/questionUI.dart';
+import 'package:growletters/widgets/confirm_exit_dialog.dart';
+import 'package:growletters/lobby/lobby_api.dart';
+import 'package:growletters/lobby/lobby_session_store.dart';
 import '../inventory/inventory_manager.dart';
 import '../resource_manager/resource_manager.dart';
 
@@ -221,10 +224,36 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _exitToLobby() async {
+    final session = LobbySessionStore.instance.current;
+    final confirmed = await showLobbyExitDialog(
+      context,
+      showHostWarning: session?.isHost ?? false,
+    );
+    if (!confirmed) return;
+    if (session != null) {
+      try {
+        await LobbyApi.instance.leaveLobby(
+          session.lobbyCode,
+          session.playerId,
+        );
+      } catch (_) {}
+      LobbySessionStore.instance.clear();
+    }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Question')),
+      appBar: AppBar(
+        title: const Text('Question'),
+        leading: IconButton(
+          icon: const Icon(Icons.exit_to_app),
+          onPressed: _exitToLobby,
+        ),
+      ),
       body: Question(
         key: ValueKey(_currentQuestion.question),
         questionData: _currentQuestion,

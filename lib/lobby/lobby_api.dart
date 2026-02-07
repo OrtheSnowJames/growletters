@@ -74,6 +74,31 @@ class LobbyApi {
     _throwIfNeeded(response);
   }
 
+  Future<void> setTimeLimit(
+    String code,
+    String playerId,
+    int timeLimitSeconds,
+  ) async {
+    final response = await http.post(
+      _uri('/lobby/$code/time-limit'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'playerId': playerId,
+        'timeLimitSeconds': timeLimitSeconds,
+      }),
+    );
+    _throwIfNeeded(response);
+  }
+
+  Future<void> endLobby(String code, String playerId) async {
+    final response = await http.post(
+      _uri('/lobby/$code/end'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'playerId': playerId}),
+    );
+    _throwIfNeeded(response);
+  }
+
   Future<void> leaveLobby(String code, String playerId) async {
     try {
       final response = await http.post(

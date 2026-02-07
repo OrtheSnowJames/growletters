@@ -1,19 +1,28 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import '../game/main_view/main_view.dart';
-import '../theme/palette.dart';
+import '../widgets/confirm_exit_dialog.dart';
 //import 'leave_beacon.dart';
 import 'unload_hook.dart';
 import 'lobby_api.dart';
 import 'models.dart';
+import 'lobby_session_store.dart';
+import 'widgets/leaderboard_card.dart';
+import 'widgets/lobby_header.dart';
+import 'widgets/players_card.dart';
+import 'widgets/status_banner.dart';
+import 'widgets/time_limit_card.dart';
 
 class LobbyRoomPage extends StatefulWidget {
-  const LobbyRoomPage({super.key, required this.session});
+  const LobbyRoomPage({
+    super.key,
+    required this.session,
+    this.returnToGameOnPlay = false,
+  });
 
   final LobbySession session;
+  final bool returnToGameOnPlay;
 
   @override
   State<LobbyRoomPage> createState() => _LobbyRoomPageState();
@@ -23,9 +32,15 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   LobbyInfo? _info;
   String? _error;
   Timer? _ticker;
+  Timer? _timeTicker;
   bool _isStarting = false;
   bool _hostDisconnected = false;
   bool _navigatedToGame = false;
+  bool _isUpdatingTimeLimit = false;
+  bool _isEndingGame = false;
+  bool _isExiting = false;
+  Timer? _autoEndTimer;
+  DateTime? _localStartedAt;
   UnloadDisposer? _unloadDisposer;
 
   @override
@@ -33,6 +48,11 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     super.initState();
     _fetch();
     _ticker = Timer.periodic(const Duration(seconds: 3), (_) => _fetch());
+    _timeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _unloadDisposer = registerBeforeUnload(() {
       if (!_navigatedToGame) {
         LobbyApi.instance.sendLeaveBeacon(
@@ -82,8 +102,10 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _timeTicker?.cancel();
+    _autoEndTimer?.cancel();
     _unloadDisposer?.call();
-    if (!_navigatedToGame) {
+    if (!_navigatedToGame && !_isExiting) {
       LobbyApi.instance.leaveLobby(
         widget.session.lobbyCode,
         widget.session.playerId,
@@ -96,10 +118,20 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     try {
       final info = await LobbyApi.instance.fetchLobby(widget.session.lobbyCode);
       if (!mounted) return;
+      if (!info.started) {
+        _localStartedAt = null;
+        _autoEndTimer?.cancel();
+        _autoEndTimer = null;
+      } else if (info.startedAt != null) {
+        _localStartedAt = info.startedAt;
+      } else if (_localStartedAt == null) {
+        _localStartedAt = DateTime.now().toUtc();
+      }
       setState(() {
         _info = info;
         _error = null;
       });
+      _scheduleAutoEndIfNeeded(info);
     } on LobbyClosedException catch (err) {
       if (!mounted) return;
       _ticker?.cancel();
@@ -136,21 +168,94 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     }
   }
 
-  void _enterGame() {
-    _navigatedToGame = true;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const MainView()),
-    );
+  Future<void> _updateTimeLimitSeconds(int seconds) async {
+    if (_isUpdatingTimeLimit) return;
+    setState(() => _isUpdatingTimeLimit = true);
+    try {
+      await LobbyApi.instance.setTimeLimit(
+        widget.session.lobbyCode,
+        widget.session.playerId,
+        seconds,
+      );
+      await _fetch();
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _error = err.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdatingTimeLimit = false);
+      }
+    }
   }
 
-  Future<bool> _confirmExit() async {
+  Future<void> _endGame() async {
+    if (_isEndingGame) return;
+    setState(() => _isEndingGame = true);
+    try {
+      await LobbyApi.instance.endLobby(
+        widget.session.lobbyCode,
+        widget.session.playerId,
+      );
+      await _fetch();
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _error = err.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isEndingGame = false);
+      }
+    }
+  }
+
+  void _scheduleAutoEndIfNeeded(LobbyInfo info) {
+    if (!widget.session.isHost) return;
+    if (!info.started || _isEndingGame) return;
+    if (_autoEndTimer != null) return;
+    final startedAt = info.startedAt ?? _localStartedAt;
+    if (startedAt == null) return;
+    final endAt = startedAt.add(Duration(seconds: info.timeLimitSeconds));
+    if (DateTime.now().toUtc().isBefore(endAt)) return;
+    _autoEndTimer = Timer(const Duration(seconds: 5), () {
+      _autoEndTimer = null;
+      if (mounted) {
+        _endGame();
+      }
+    });
+  }
+
+  Future<void> _removePlayer(
+    LobbyPlayer player, {
+    required bool skipConfirmation,
+  }) async {
+    if (!widget.session.isHost || player.id == widget.session.playerId) {
+      return;
+    }
+    if (!skipConfirmation) {
+      final confirmed = await _confirmPlayerRemoval(player);
+      if (!confirmed) return;
+    }
+    try {
+      await LobbyApi.instance.leaveLobby(widget.session.lobbyCode, player.id);
+      await _fetch();
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to remove ${player.name}: $err';
+      });
+    }
+  }
+
+  Future<bool> _confirmPlayerRemoval(LobbyPlayer player) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Leave lobby?'),
-        content: const Text(
-          'This will eradicate you from the lobby. Are you sure you want to continue?',
+        title: const Text('Remove player?'),
+        content: Text(
+          'Remove ${player.name} from the lobby?',
         ),
         actions: [
           TextButton(
@@ -158,8 +263,9 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Leave'),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -167,14 +273,67 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     return result ?? false;
   }
 
+  void _enterGame() {
+    final info = _info;
+    final effectiveStartedAt = (info != null && info.started)
+        ? info.startedAt ?? _localStartedAt
+        : null;
+    _navigatedToGame = true;
+    if (widget.returnToGameOnPlay && Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MainView(
+          showHostWarning: widget.session.isHost,
+          timeLimitSeconds: info?.timeLimitSeconds ?? 600,
+          startedAt: effectiveStartedAt,
+          session: widget.session,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmExit() async {
+    return showLobbyExitDialog(
+      context,
+      showHostWarning: widget.session.isHost,
+    );
+  }
+
+  Future<void> _exitLobby() async {
+    if (_isExiting) return;
+    final confirmed = await _confirmExit();
+    if (!confirmed) return;
+    _isExiting = true;
+    try {
+      await LobbyApi.instance.leaveLobby(
+        widget.session.lobbyCode,
+        widget.session.playerId,
+      );
+    } catch (_) {}
+    LobbySessionStore.instance.clear();
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     final info = _info;
+    final effectiveStartedAt = (info != null && info.started)
+        ? info.startedAt ?? _localStartedAt
+        : null;
     return WillPopScope(
       onWillPop: _confirmExit,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Lobby'),
+          leading: IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: _exitLobby,
+          ),
           actions: [
             IconButton(icon: const Icon(Icons.refresh), onPressed: _fetch),
           ],
@@ -189,260 +348,139 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: _StatusBanner(
+                        child: StatusBanner(
                           message: _error!,
                           color: Colors.redAccent,
                           onDismiss: () => setState(() => _error = null),
                         ),
                       ),
                     if (info != null) ...[
-                      _LobbyHeader(info: info),
-                      const SizedBox(height: 16),
                       Expanded(
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _PlayersCard(info: info)),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 320),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (widget.session.isHost)
+                                    ...[
+                                      Flexible(
+                                        fit: FlexFit.loose,
+                                        child: LobbyHeader(info: info),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TimeLimitCard(
+                                        timeLimitSeconds: info.timeLimitSeconds,
+                                        startedAt: effectiveStartedAt,
+                                        canEdit: true,
+                                        isStarted:
+                                            info.started || _isUpdatingTimeLimit,
+                                        onChanged: _updateTimeLimitSeconds,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.center,
+                                          child: SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton(
+                                              onPressed: info.started ||
+                                                      _isStarting
+                                                  ? null
+                                                  : _startGame,
+                                              child: Text(
+                                                info.started
+                                                    ? 'Starting...'
+                                                    : 'Start Game',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ]
+                                  else ...[
+                                    LobbyHeader(info: info),
+                                    const SizedBox(height: 16),
+                                    TimeLimitCard(
+                                      timeLimitSeconds: info.timeLimitSeconds,
+                                      startedAt: effectiveStartedAt,
+                                      canEdit: false,
+                                      isStarted: info.started,
+                                      onChanged: null,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      info.started
+                                          ? 'Game is starting…'
+                                          : 'Waiting for host to start the game.',
+                                      textAlign: TextAlign.center,
+                                      style:
+                                          Theme.of(context).textTheme.bodyLarge,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (info.started)
+                                      ElevatedButton(
+                                        onPressed: _enterGame,
+                                        child: const Text('Enter Game'),
+                                      ),
+                                  ],
+                                  if (widget.session.isHost && info.started) ...[
+                                    const SizedBox(height: 12),
+                                    ElevatedButton(
+                                      onPressed: _enterGame,
+                                      child: const Text('Play Game'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton(
+                                      onPressed: _isEndingGame ? null : _endGame,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.redAccent,
+                                      ),
+                                      child: const Text('End Game Now'),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                             const SizedBox(width: 16),
-                            if (info.started)
-                              Expanded(child: _LeaderboardCard(info: info)),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: PlayersCard(
+                                      info: info,
+                                      canManagePlayers: widget.session.isHost,
+                                      currentPlayerId: widget.session.playerId,
+                                      showScores: info.started,
+                                      onRemovePlayer: (player, skipConfirm) {
+                                        _removePlayer(
+                                          player,
+                                          skipConfirmation: skipConfirm,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  if (info.started) ...[
+                                    const SizedBox(height: 16),
+                                    Flexible(
+                                      fit: FlexFit.loose,
+                                      child: LeaderboardCard(info: info),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      if (widget.session.isHost)
-                        ElevatedButton(
-                          onPressed: info.started || _isStarting
-                              ? null
-                              : _startGame,
-                          child: Text(
-                            info.started ? 'Starting...' : 'Start Game',
-                          ),
-                        )
-                      else ...[
-                        Text(
-                          info.started
-                              ? 'Game is starting…'
-                              : 'Waiting for host to start the game.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 12),
-                        if (info.started)
-                          ElevatedButton(
-                            onPressed: _enterGame,
-                            child: const Text('Enter Game'),
-                          ),
-                      ],
-                      if (widget.session.isHost && info.started) ...[
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _enterGame,
-                          child: const Text('Play Game'),
-                        ),
-                      ],
                     ],
                   ],
                 ),
               ),
-      ),
-    );
-  }
-}
-
-class _LobbyHeader extends StatelessWidget {
-  const _LobbyHeader({required this.info});
-
-  final LobbyInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppPalette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final link = '${Uri.base.origin}/?code=${info.lobbyCode}';
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Lobby Code',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[200]),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      info.lobbyCode,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            letterSpacing: 4,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    tooltip: 'Copy link',
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: link));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Link copied!')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SelectableText(
-                link,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: Colors.blueGrey[100]),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PlayersCard extends StatelessWidget {
-  const _PlayersCard({required this.info});
-
-  final LobbyInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppPalette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Players',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              itemCount: info.players.length,
-              itemBuilder: (context, index) {
-                final player = info.players[index];
-                return ListTile(
-                  leading: Icon(
-                    player.isHost ? Icons.star : Icons.person,
-                    color: player.isHost ? AppPalette.accent : Colors.white70,
-                  ),
-                  title: Text(player.name),
-                  subtitle: Text('${player.apples} apples'),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LeaderboardCard extends StatelessWidget {
-  const _LeaderboardCard({required this.info});
-
-  final LobbyInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    final players = List<LobbyPlayer>.from(info.players)
-      ..sort((a, b) => b.apples.compareTo(a.apples));
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppPalette.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Leaderboard',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              itemCount: players.length,
-              itemBuilder: (context, index) {
-                final player = players[index];
-                return ListTile(
-                  leading: Text('#${index + 1}'),
-                  title: Text(player.name),
-                  trailing: Text(
-                    '${player.apples}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({
-    required this.message,
-    required this.color,
-    required this.onDismiss,
-  });
-
-  final String message;
-  final Color color;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: color, fontWeight: FontWeight.w600),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            color: color,
-            onPressed: onDismiss,
-          ),
-        ],
       ),
     );
   }

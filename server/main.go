@@ -32,6 +32,7 @@ type lobbyPlayer struct {
 	IsHost  bool   `json:"isHost"`
 	Joined  int64  `json:"joinedAt"`
 	Session string `json:"-"`
+	LastActive time.Time `json:"-"`
 }
 
 type lobby struct {
@@ -39,6 +40,8 @@ type lobby struct {
 	Code      string
 	HostID    string
 	Started   bool
+	StartedAt time.Time
+	TimeLimitSeconds int
 	CreatedAt time.Time
 	Players   map[string]*lobbyPlayer
 }
@@ -96,10 +99,11 @@ func handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	playerID := uuid.Must(uuid.NewV4()).String()
 
 	player := &lobbyPlayer{
-		ID:     playerID,
-		Name:   req.PlayerName,
-		IsHost: true,
-		Joined: time.Now().Unix(),
+		ID:         playerID,
+		Name:       req.PlayerName,
+		IsHost:     true,
+		Joined:     time.Now().Unix(),
+		LastActive: time.Now(),
 	}
 
 	newLobby := &lobby{
@@ -107,6 +111,7 @@ func handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		Code:      code,
 		HostID:    playerID,
 		CreatedAt: time.Now(),
+		TimeLimitSeconds: 600,
 		Players: map[string]*lobbyPlayer{
 			playerID: player,
 		},
@@ -143,6 +148,12 @@ func handleLobbyRoutes(w http.ResponseWriter, r *http.Request) {
 		handleStartLobby(w, r, code)
 	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "leave":
 		handleLeaveLobby(w, r, code)
+	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "time-limit":
+		handleSetTimeLimit(w, r, code)
+	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "end":
+		handleEndLobby(w, r, code)
+	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "heartbeat":
+		handleHeartbeat(w, r, code)
 	case r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "apples":
 		handleApplesUpdate(w, r, code)
 	default:
@@ -188,6 +199,44 @@ func handleLeaderboard(w http.ResponseWriter, r *http.Request, code string) {
 	})
 }
 
+func handleHeartbeat(w http.ResponseWriter, r *http.Request, code string) {
+	var req struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
+		http.Error(w, "playerId required", http.StatusBadRequest)
+		return
+	}
+
+	lobbyMu.Lock()
+	defer lobbyMu.Unlock()
+	l, ok := lobbies[code]
+	if !ok {
+		http.Error(w, "lobby not found", http.StatusNotFound)
+		return
+	}
+
+	player, ok := l.Players[req.PlayerID]
+	if !ok {
+		http.Error(w, "player not found", http.StatusNotFound)
+		return
+	}
+	now := time.Now()
+	player.LastActive = now
+
+	for _, player := range l.Players {
+		if now.Sub(player.LastActive) > 15*time.Second {
+			delete(l.Players, player.ID) // timeout
+			log.Printf("player %s timed out", player.ID)
+			if player.ID == l.HostID {
+				closeLobbyForHostTimeout(w, code)
+				return
+			}
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
 		PlayerName string `json:"playerName"`
@@ -214,9 +263,10 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 	}
 	playerID := uuid.Must(uuid.NewV4()).String()
 	l.Players[playerID] = &lobbyPlayer{
-		ID:     playerID,
-		Name:   req.PlayerName,
-		Joined: time.Now().Unix(),
+		ID:         playerID,
+		Name:       req.PlayerName,
+		Joined:     time.Now().Unix(),
+		LastActive: time.Now(),
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
@@ -252,8 +302,77 @@ func handleStartLobby(w http.ResponseWriter, r *http.Request, code string) {
 		return
 	}
 	l.Started = true
+	l.StartedAt = time.Now().UTC()
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "started"})
+}
+
+func handleSetTimeLimit(w http.ResponseWriter, r *http.Request, code string) {
+	var req struct {
+		PlayerID        string `json:"playerId"`
+		TimeLimitSeconds int    `json:"timeLimitSeconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
+		http.Error(w, "playerId required", http.StatusBadRequest)
+		return
+	}
+	if req.TimeLimitSeconds <= 0 {
+		http.Error(w, "timeLimitSeconds must be positive", http.StatusBadRequest)
+		return
+	}
+
+	lobbyMu.Lock()
+	defer lobbyMu.Unlock()
+	l, ok := lobbies[code]
+	if !ok {
+		http.Error(w, "lobby not found", http.StatusNotFound)
+		return
+	}
+	if l.HostID != req.PlayerID {
+		http.Error(w, "only host can set time limit", http.StatusForbidden)
+		return
+	}
+	if l.Started {
+		http.Error(w, "lobby already started", http.StatusConflict)
+		return
+	}
+
+	l.TimeLimitSeconds = req.TimeLimitSeconds
+	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func handleEndLobby(w http.ResponseWriter, r *http.Request, code string) {
+	var req struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
+		http.Error(w, "playerId required", http.StatusBadRequest)
+		return
+	}
+
+	lobbyMu.Lock()
+	defer lobbyMu.Unlock()
+	l, ok := lobbies[code]
+	if !ok {
+		http.Error(w, "lobby not found", http.StatusNotFound)
+		return
+	}
+	if l.HostID != req.PlayerID {
+		http.Error(w, "only host can end game", http.StatusForbidden)
+		return
+	}
+	if !l.Started {
+		http.Error(w, "lobby not started", http.StatusConflict)
+		return
+	}
+	if l.TimeLimitSeconds <= 0 {
+		l.TimeLimitSeconds = 1
+	}
+ 	l.StartedAt = time.Now().UTC().Add(
+		-time.Duration(l.TimeLimitSeconds) * time.Second,
+	)
+	l.Started = false
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ended"})
 }
 
 func handleLeaveLobby(w http.ResponseWriter, r *http.Request, code string) {
@@ -352,11 +471,24 @@ func updatePlayerApples(code, playerID string, update func(*lobbyPlayer)) {
 	update(player)
 }
 
+func closeLobbyForHostTimeout(w http.ResponseWriter, code string) {
+	closedLobbies[code] = "Host timed out"
+	delete(lobbies, code)
+	log.Println("Host timed out")
+	respondJSON(w, http.StatusGone, map[string]string{"status": "host_timed_out"})
+}
+
 func lobbyToResponse(l *lobby) map[string]any {
+	startedAt := int64(0)
+	if !l.StartedAt.IsZero() {
+		startedAt = l.StartedAt.Unix()
+	}
 	return map[string]any{
 		"lobbyId":   l.ID,
 		"lobbyCode": l.Code,
 		"started":   l.Started,
+		"startedAt": startedAt,
+		"timeLimitSeconds": l.TimeLimitSeconds,
 		"players":   lobbyPlayersSlice(l),
 	}
 }
