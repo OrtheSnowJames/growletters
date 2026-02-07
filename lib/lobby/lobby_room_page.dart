@@ -41,6 +41,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   bool _isExiting = false;
   Timer? _autoEndTimer;
   DateTime? _localStartedAt;
+  DateTime? _localEndedAt;
   UnloadDisposer? _unloadDisposer;
 
   @override
@@ -120,10 +121,16 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
       if (!mounted) return;
       if (!info.started) {
         _localStartedAt = null;
+        if (_localEndedAt == null && info.startedAt != null) {
+          _localEndedAt = info.startedAt?.add(
+            Duration(seconds: info.timeLimitSeconds),
+          );
+        }
         _autoEndTimer?.cancel();
         _autoEndTimer = null;
       } else if (info.startedAt != null) {
         _localStartedAt = info.startedAt;
+        _localEndedAt = null;
       } else if (_localStartedAt == null) {
         _localStartedAt = DateTime.now().toUtc();
       }
@@ -198,6 +205,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
         widget.session.lobbyCode,
         widget.session.playerId,
       );
+      _localEndedAt = DateTime.now().toUtc();
       await _fetch();
     } catch (err) {
       if (!mounted) return;
@@ -225,6 +233,17 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
         _endGame();
       }
     });
+  }
+
+  bool _isEndWindow(LobbyInfo info) {
+    final startedAt = info.startedAt;
+    final endAt = startedAt != null
+        ? startedAt.add(Duration(seconds: info.timeLimitSeconds))
+        : _localEndedAt;
+    if (endAt == null) return false;
+    final now = DateTime.now().toUtc();
+    return now.isAfter(endAt) &&
+        now.isBefore(endAt.add(const Duration(seconds: 5)));
   }
 
   Future<void> _removePlayer(
@@ -325,6 +344,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     final effectiveStartedAt = (info != null && info.started)
         ? info.startedAt ?? _localStartedAt
         : null;
+    final showResults = info != null && (info.started || _isEndWindow(info));
     return WillPopScope(
       onWillPop: _confirmExit,
       child: Scaffold(
@@ -364,8 +384,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  if (widget.session.isHost)
-                                    ...[
+                                  if (widget.session.isHost) ...[
                                       Flexible(
                                         fit: FlexFit.loose,
                                         child: LobbyHeader(info: info),
@@ -374,9 +393,9 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                       TimeLimitCard(
                                         timeLimitSeconds: info.timeLimitSeconds,
                                         startedAt: effectiveStartedAt,
-                                        canEdit: true,
-                                        isStarted:
-                                            info.started || _isUpdatingTimeLimit,
+                                        canEdit: !showResults,
+                                        isStarted: showResults ||
+                                            _isUpdatingTimeLimit,
                                         onChanged: _updateTimeLimitSeconds,
                                       ),
                                       const SizedBox(height: 16),
@@ -386,12 +405,20 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                           child: SizedBox(
                                             width: double.infinity,
                                             child: ElevatedButton(
-                                              onPressed: info.started ||
+                                              style: ElevatedButton.styleFrom(
+                                                minimumSize:
+                                                    const Size.fromHeight(56),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  vertical: 16,
+                                                ),
+                                              ),
+                                              onPressed: showResults ||
                                                       _isStarting
                                                   ? null
                                                   : _startGame,
                                               child: Text(
-                                                info.started
+                                                showResults
                                                     ? 'Starting...'
                                                     : 'Start Game',
                                               ),
@@ -426,7 +453,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                         child: const Text('Enter Game'),
                                       ),
                                   ],
-                                  if (widget.session.isHost && info.started) ...[
+                                  if (widget.session.isHost && showResults) ...[
                                     const SizedBox(height: 12),
                                     ElevatedButton(
                                       onPressed: _enterGame,
@@ -434,7 +461,10 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                     ),
                                     const SizedBox(height: 12),
                                     OutlinedButton(
-                                      onPressed: _isEndingGame ? null : _endGame,
+                                      onPressed:
+                                          _isEndingGame || !info.started
+                                              ? null
+                                              : _endGame,
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: Colors.redAccent,
                                       ),
@@ -464,7 +494,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                       },
                                     ),
                                   ),
-                                  if (info.started) ...[
+                                  if (showResults) ...[
                                     const SizedBox(height: 16),
                                     Flexible(
                                       fit: FlexFit.loose,
