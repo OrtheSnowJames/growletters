@@ -11,7 +11,7 @@ UnloadDisposer registerBeforeUnloadImpl(void Function() callback) {
     }
   }
 
-  print("In registering");
+  print("In unloading");
   
   html.window.addEventListener('beforeunload', listener);
   return () {
