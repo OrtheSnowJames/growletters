@@ -32,7 +32,7 @@ class MainView extends StatefulWidget {
 
 class _MainViewState extends State<MainView> {
   final List<TreeData> _trees = List<TreeData>.generate(
-    10,
+    6,
     (_) => TreeData.basic(),
   );
 
@@ -171,6 +171,8 @@ class _MainViewState extends State<MainView> {
         builder: (_) => TradingPost(
           onTreeSeedPurchased: _handleTreeSeedPurchase,
           onExit: _exitToLobby,
+          timeLimitSeconds: widget.timeLimitSeconds,
+          startedAt: widget.startedAt,
         ),
       ),
     );
@@ -202,7 +204,18 @@ class _MainViewState extends State<MainView> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppPalette.card,
+                    color: AppPalette.background.withValues(alpha: 0.78),
+                    backgroundBlendMode: BlendMode.darken,
+                    image: const DecorationImage(
+                      image: AssetImage('assets/grass_texture.png'),
+                      repeat: ImageRepeat.repeat,
+                      alignment: Alignment.topLeft,
+                      scale: 2.8,
+                      colorFilter: ColorFilter.mode(
+                        Color(0xCC0F172A),
+                        BlendMode.darken,
+                      ),
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.white10),
                   ),

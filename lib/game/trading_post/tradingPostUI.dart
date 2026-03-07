@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:growletters/game/tools/add_commas.dart';
 import '../inventory/inventory_manager.dart';
@@ -11,10 +12,18 @@ import '../../theme/palette.dart';
 const double _tradeItemImageSize = 72;
 
 class TradingPost extends StatefulWidget {
-  const TradingPost({super.key, this.onTreeSeedPurchased, this.onExit});
+  const TradingPost({
+    super.key,
+    this.onTreeSeedPurchased,
+    this.onExit,
+    this.timeLimitSeconds = 600,
+    this.startedAt,
+  });
 
   final VoidCallback? onTreeSeedPurchased;
   final Future<void> Function()? onExit;
+  final int timeLimitSeconds;
+  final DateTime? startedAt;
 
   @override
   State<TradingPost> createState() => _TradingPostState();
@@ -23,11 +32,19 @@ class TradingPost extends StatefulWidget {
 class _TradingPostState extends State<TradingPost> {
   late final List<TradeDefinition> _tradeDefinitions;
   final ApplePriceTicker _priceTicker = ApplePriceTicker.instance;
+  Timer? _timeTicker;
 
   @override
   void initState() {
     super.initState();
     _priceTicker.attach();
+    if (widget.startedAt != null) {
+      _timeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
     _tradeDefinitions = [
       const TradeDefinition(
         giveItemId: 'banana',
@@ -62,6 +79,7 @@ class _TradingPostState extends State<TradingPost> {
   @override
   void dispose() {
     _priceTicker.detach();
+    _timeTicker?.cancel();
     super.dispose();
   }
 
@@ -69,6 +87,133 @@ class _TradingPostState extends State<TradingPost> {
   Widget build(BuildContext context) {
     final isReady =
         ItemRegistry.isInitialized && InventoryManager.isInitialized;
+    final bodyContent = !isReady
+        ? const Center(child: CircularProgressIndicator())
+        : _priceTicker.price == null
+        ? const Center(child: CircularProgressIndicator())
+        : ValueListenableBuilder<int>(
+            valueListenable: _priceTicker.price!,
+            builder: (context, tradePrice, _) {
+              return ValueListenableBuilder<Map<String, int>>(
+                valueListenable: InventoryManager.listenable,
+                builder: (context, counts, __) {
+                  final trades =
+                      _tradeDefinitions.fold<List<TradeData>>([], (
+                        list,
+                        definition,
+                      ) {
+                        final giveItem = ItemRegistry.getById(
+                          definition.giveItemId,
+                        );
+                        final receiveItem = ItemRegistry.getById(
+                          definition.receiveItemId,
+                        );
+                        if (giveItem == null || receiveItem == null) {
+                          return list;
+                        }
+                        final giveAvailable =
+                            counts[definition.giveItemId] ?? 0;
+                        return list..add(
+                          TradeData(
+                            giveItemId: definition.giveItemId,
+                            giveCount: tradePrice,
+                            receiveItemId: definition.receiveItemId,
+                            receiveCount: definition.receiveCount,
+                            canTrade: giveAvailable >= tradePrice,
+                            onTrade: () =>
+                                _performTrade(definition, tradePrice),
+                          ),
+                        );
+                      })..add(
+                        TradeData(
+                          giveItemId: 'ananab',
+                          giveCount: 1,
+                          receiveItemId: 'tree_seed',
+                          receiveCount: 1,
+                          canTrade: (counts['ananab'] ?? 0) >= 1,
+                          onTrade: _performTreeSeedTrade,
+                        ),
+                      );
+
+                  return Stack(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppPalette.card,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: Text(
+                              'Current trade price: $tradePrice bananas',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _TradingPostTimeLeftBanner(
+                            timeLimitSeconds: widget.timeLimitSeconds,
+                            startedAt: widget.startedAt,
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppPalette.card,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white10),
+                                    ),
+                                    child: ListView.separated(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                        horizontal: 8,
+                                      ),
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 12),
+                                      itemCount: trades.length,
+                                      itemBuilder: (context, index) =>
+                                          Trade(tradeData: trades[index]),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.6,
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: const Text('Close'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: InventoryPanel(
+                          items: ItemRegistry.items,
+                          counts: counts,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
 
     return Scaffold(
       backgroundColor: AppPalette.background,
@@ -87,126 +232,7 @@ class _TradingPostState extends State<TradingPost> {
           },
         ),
       ),
-      body: !isReady
-          ? const Center(child: CircularProgressIndicator())
-          : _priceTicker.price == null
-          ? const Center(child: CircularProgressIndicator())
-          : ValueListenableBuilder<int>(
-              valueListenable: _priceTicker.price!,
-              builder: (context, tradePrice, _) {
-                return ValueListenableBuilder<Map<String, int>>(
-                  valueListenable: InventoryManager.listenable,
-                  builder: (context, counts, __) {
-                    final trades =
-                        _tradeDefinitions.fold<List<TradeData>>([], (
-                          list,
-                          definition,
-                        ) {
-                          final giveItem = ItemRegistry.getById(
-                            definition.giveItemId,
-                          );
-                          final receiveItem = ItemRegistry.getById(
-                            definition.receiveItemId,
-                          );
-                          if (giveItem == null || receiveItem == null) {
-                            return list;
-                          }
-                          final giveAvailable =
-                              counts[definition.giveItemId] ?? 0;
-                          return list..add(
-                            TradeData(
-                              giveItemId: definition.giveItemId,
-                              giveCount: tradePrice,
-                              receiveItemId: definition.receiveItemId,
-                              receiveCount: definition.receiveCount,
-                              canTrade: giveAvailable >= tradePrice,
-                              onTrade: () =>
-                                  _performTrade(definition, tradePrice),
-                            ),
-                          );
-                        })..add(
-                          TradeData(
-                            giveItemId: 'ananab',
-                            giveCount: 1,
-                            receiveItemId: 'tree_seed',
-                            receiveCount: 1,
-                            canTrade: (counts['ananab'] ?? 0) >= 1,
-                            onTrade: _performTreeSeedTrade,
-                          ),
-                        );
-
-                    return Stack(
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppPalette.card,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white10),
-                              ),
-                              child: Text(
-                                'Current trade price: $tradePrice bananas',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: AppPalette.card,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: Colors.white10),
-                                      ),
-                                      child: ListView.separated(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                          horizontal: 8,
-                                        ),
-                                        separatorBuilder: (_, __) =>
-                                            const SizedBox(height: 12),
-                                        itemCount: trades.length,
-                                        itemBuilder: (context, index) =>
-                                            Trade(tradeData: trades[index]),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () => Navigator.of(context).pop(),
-                                      child: const Text('Back to Game'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          right: 16,
-                          bottom: 16,
-                          child: InventoryPanel(
-                            items: ItemRegistry.items,
-                            counts: counts,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
+      body: bodyContent,
     );
   }
 
@@ -232,6 +258,56 @@ class _TradingPostState extends State<TradingPost> {
       fit: BoxFit.contain,
       filterQuality: FilterQuality.none,
     );
+  }
+}
+
+class _TradingPostTimeLeftBanner extends StatelessWidget {
+  const _TradingPostTimeLeftBanner({
+    required this.timeLimitSeconds,
+    required this.startedAt,
+  });
+
+  final int timeLimitSeconds;
+  final DateTime? startedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final timeLeft = _formatDuration(_timeLeft());
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppPalette.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Text(
+        'Time left: $timeLeft',
+        textAlign: TextAlign.center,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Duration _timeLeft() {
+    final startedAtValue = startedAt;
+    if (startedAtValue == null) {
+      return Duration(seconds: timeLimitSeconds);
+    }
+    final endAt = startedAtValue.add(Duration(seconds: timeLimitSeconds));
+    final remaining = endAt.difference(DateTime.now().toUtc());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  String _formatDuration(Duration duration) {
+    final totalSeconds = duration.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    final minutesText = minutes.toString().padLeft(2, '0');
+    final secondsText = seconds.toString().padLeft(2, '0');
+    return '$minutesText:$secondsText';
   }
 }
 
@@ -270,10 +346,7 @@ class SingleItem extends StatelessWidget {
         SizedBox(
           width: _tradeItemImageSize,
           height: _tradeItemImageSize,
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: item.image,
-          ),
+          child: FittedBox(fit: BoxFit.contain, child: item.image),
         ),
         const SizedBox(width: 12),
         Column(

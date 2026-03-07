@@ -35,7 +35,6 @@ def args() -> str | None:
     if "--paste" in args:
         # get pasteboard contents
         data = pyperclip.paste()
-        # TODO: use data to convert Quizlet data
         return data
 
     print(HELP_TEXT)

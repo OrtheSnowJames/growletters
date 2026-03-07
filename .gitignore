@@ -47,3 +47,5 @@ app.*.map.json
 # Not very big PNGs
 /assets/*.png
 !/assets/seed.png
+
+asperite_from_steam

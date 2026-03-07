@@ -56,7 +56,8 @@ class PlayersCard extends StatelessWidget {
                     return PlayerCard(
                       player: player,
                       showScores: showScores,
-                      canRemove: canManagePlayers && player.id != currentPlayerId,
+                      canRemove:
+                          canManagePlayers && player.id != currentPlayerId,
                       onRemovePlayer: (skipConfirmation) =>
                           onRemovePlayer(player, skipConfirmation),
                     );
@@ -107,8 +108,12 @@ class _PlayerCardState extends State<PlayerCard> {
     final borderColor = highlight ? Colors.redAccent : Colors.white10;
 
     return MouseRegion(
-      onEnter: widget.canRemove ? (_) => setState(() => _hovering = true) : null,
-      onExit: widget.canRemove ? (_) => setState(() => _hovering = false) : null,
+      onEnter: widget.canRemove
+          ? (_) => setState(() => _hovering = true)
+          : null,
+      onExit: widget.canRemove
+          ? (_) => setState(() => _hovering = false)
+          : null,
       child: GestureDetector(
         onTap: widget.canRemove ? _handleTap : null,
         child: AnimatedContainer(
@@ -125,11 +130,7 @@ class _PlayerCardState extends State<PlayerCard> {
             mainAxisSize: MainAxisSize.max,
             children: [
               if (player.isHost) ...[
-                Icon(
-                  Icons.star,
-                  size: 20,
-                  color: AppPalette.accent,
-                ),
+                Icon(Icons.star, size: 20, color: AppPalette.accent),
                 const SizedBox(height: 4),
               ],
               Text(
@@ -144,16 +145,9 @@ class _PlayerCardState extends State<PlayerCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.eco,
-                      size: 16,
-                      color: Colors.orange.shade200,
-                    ),
+                    Icon(Icons.eco, size: 16, color: Colors.orange.shade200),
                     const SizedBox(width: 4),
-                    Text(
-                      '${player.apples}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
+                    Text('${player.apples}', style: theme.textTheme.bodyMedium),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -168,15 +162,17 @@ class _PlayerCardState extends State<PlayerCard> {
               if (widget.canRemove)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    _hovering
-                        ? 'Click to remove${_shiftHint()}'
-                        : 'Host controls',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: highlight ? Colors.redAccent : Colors.blueGrey[200],
-                    ),
-                  ),
+                  child: _hovering
+                      ? Text(
+                          'Click to remove${_shiftHint()}',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: highlight
+                                ? Colors.redAccent
+                                : Colors.blueGrey[200],
+                          ),
+                        )
+                      : null,
                 ),
             ],
           ),

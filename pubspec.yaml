@@ -84,6 +84,7 @@ flutter:
     # Items
     - assets/apple.png
     - assets/banana.png
+    - assets/grass_texture.png
 
 
 

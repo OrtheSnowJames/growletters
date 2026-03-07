@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,24 +27,26 @@ type appleCountPayload struct {
 }
 
 type lobbyPlayer struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Apples  int    `json:"apples"`
-	IsHost  bool   `json:"isHost"`
-	Joined  int64  `json:"joinedAt"`
-	Session string `json:"-"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Apples     int       `json:"apples"`
+	IsHost     bool      `json:"isHost"`
+	JoinedAt   time.Time `json:"-"`
+	JoinOrder  int64     `json:"-"`
+	Session    string    `json:"-"`
 	LastActive time.Time `json:"-"`
 }
 
 type lobby struct {
-	ID        string
-	Code      string
-	HostID    string
-	Started   bool
-	StartedAt time.Time
+	ID               string
+	Code             string
+	HostID           string
+	Started          bool
+	StartedAt        time.Time
 	TimeLimitSeconds int
-	CreatedAt time.Time
-	Players   map[string]*lobbyPlayer
+	CreatedAt        time.Time
+	JoinCounter      int64
+	Players          map[string]*lobbyPlayer
 }
 
 var (
@@ -98,19 +101,22 @@ func handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 	lobbyID := uuid.Must(uuid.NewV4()).String()
 	playerID := uuid.Must(uuid.NewV4()).String()
 
+	now := time.Now().UTC()
 	player := &lobbyPlayer{
 		ID:         playerID,
 		Name:       req.PlayerName,
 		IsHost:     true,
-		Joined:     time.Now().Unix(),
-		LastActive: time.Now(),
+		JoinedAt:   now,
+		JoinOrder:  1,
+		LastActive: now,
 	}
 
 	newLobby := &lobby{
-		ID:        lobbyID,
-		Code:      code,
-		HostID:    playerID,
-		CreatedAt: time.Now(),
+		ID:               lobbyID,
+		Code:             code,
+		HostID:           playerID,
+		CreatedAt:        now,
+		JoinCounter:      1,
 		TimeLimitSeconds: 600,
 		Players: map[string]*lobbyPlayer{
 			playerID: player,
@@ -262,11 +268,14 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 		return
 	}
 	playerID := uuid.Must(uuid.NewV4()).String()
+	now := time.Now().UTC()
+	l.JoinCounter++
 	l.Players[playerID] = &lobbyPlayer{
 		ID:         playerID,
 		Name:       req.PlayerName,
-		Joined:     time.Now().Unix(),
-		LastActive: time.Now(),
+		JoinedAt:   now,
+		JoinOrder:  l.JoinCounter,
+		LastActive: now,
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
@@ -274,6 +283,7 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 		"lobbyCode": l.Code,
 		"playerId":  playerID,
 		"isHost":    false,
+		"players":   lobbyPlayersSlice(l),
 	})
 }
 
@@ -309,7 +319,7 @@ func handleStartLobby(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleSetTimeLimit(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID        string `json:"playerId"`
+		PlayerID         string `json:"playerId"`
 		TimeLimitSeconds int    `json:"timeLimitSeconds"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
@@ -368,7 +378,7 @@ func handleEndLobby(w http.ResponseWriter, r *http.Request, code string) {
 	if l.TimeLimitSeconds <= 0 {
 		l.TimeLimitSeconds = 1
 	}
- 	l.StartedAt = time.Now().UTC().Add(
+	l.StartedAt = time.Now().UTC().Add(
 		-time.Duration(l.TimeLimitSeconds) * time.Second,
 	)
 	l.Started = false
@@ -484,12 +494,12 @@ func lobbyToResponse(l *lobby) map[string]any {
 		startedAt = l.StartedAt.Unix()
 	}
 	return map[string]any{
-		"lobbyId":   l.ID,
-		"lobbyCode": l.Code,
-		"started":   l.Started,
-		"startedAt": startedAt,
+		"lobbyId":          l.ID,
+		"lobbyCode":        l.Code,
+		"started":          l.Started,
+		"startedAt":        startedAt,
 		"timeLimitSeconds": l.TimeLimitSeconds,
-		"players":   lobbyPlayersSlice(l),
+		"players":          lobbyPlayersSlice(l),
 	}
 }
 
@@ -497,12 +507,19 @@ func lobbyPlayersSlice(l *lobby) []map[string]any {
 	players := make([]map[string]any, 0, len(l.Players))
 	for _, p := range l.Players {
 		players = append(players, map[string]any{
-			"id":     p.ID,
-			"name":   p.Name,
-			"apples": p.Apples,
-			"isHost": p.IsHost,
+			"id":        p.ID,
+			"name":      p.Name,
+			"apples":    p.Apples,
+			"isHost":    p.IsHost,
+			"joinedAt":  p.JoinedAt.UnixMilli(),
+			"joinOrder": p.JoinOrder,
 		})
 	}
+	sort.Slice(players, func(i, j int) bool {
+		left := players[i]["joinOrder"].(int64)
+		right := players[j]["joinOrder"].(int64)
+		return left < right
+	})
 	return players
 }
 

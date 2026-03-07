@@ -124,8 +124,8 @@ class _LobbyPageState extends State<LobbyPage> {
         const SizedBox(height: 12),
         Text(
           _hostingOptionsOn
-              ? 'Choose your role to get started'
-              : 'Enter your name',
+              ? 'Host a game'
+              : 'Join a game',
           textAlign: TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
             color: Colors.blueGrey[200],
