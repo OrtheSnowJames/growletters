@@ -10,10 +10,12 @@ import 'lobby/main_page.dart';
 import 'question/questionUI.dart';
 import 'theme/palette.dart';
 import 'lobby/apple_reporter.dart';
+import 'lobby/lobby_heartbeat.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   AppleReporter.instance;
+  LobbyHeartbeat.instance;
   await _preloadQuestions();
   runApp(GrowLettersApp(showDebugHome: args.contains('--debug')));
 }
@@ -48,12 +50,16 @@ class GrowLettersApp extends StatelessWidget {
           backgroundColor: AppPalette.secondaryAccent,
           foregroundColor: AppPalette.background,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
       appBarTheme: baseDark.appBarTheme.copyWith(
@@ -178,9 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ResourceManager.preload(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('GrowLetters'),
-      ),
+      appBar: AppBar(title: const Text('GrowLetters')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -201,10 +205,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     "grow_some_letters",
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: AppPalette.accent,
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: AppPalette.accent,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -246,7 +250,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPrimaryButton({required String label, required VoidCallback onPressed}) {
+  Widget _buildPrimaryButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
     return FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
@@ -262,10 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required VoidCallback onPressed,
   }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      child: Text(label),
-    );
+    return ElevatedButton(onPressed: onPressed, child: Text(label));
   }
 }
 

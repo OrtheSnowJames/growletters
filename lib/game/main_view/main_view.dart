@@ -204,7 +204,7 @@ class _MainViewState extends State<MainView> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppPalette.background.withValues(alpha: 0.78),
+                    color: const Color(0xFF0A120C),
                     backgroundBlendMode: BlendMode.darken,
                     image: const DecorationImage(
                       image: AssetImage('assets/grass_texture.png'),
@@ -212,7 +212,7 @@ class _MainViewState extends State<MainView> {
                       alignment: Alignment.topLeft,
                       scale: 2.8,
                       colorFilter: ColorFilter.mode(
-                        Color(0xCC0F172A),
+                        Color(0xE60A120C),
                         BlendMode.darken,
                       ),
                     ),

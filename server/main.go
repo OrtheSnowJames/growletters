@@ -56,6 +56,11 @@ var (
 	lobbyMu       sync.RWMutex
 )
 
+const (
+	playerHeartbeatTimeout = 10 * time.Second
+	heartbeatSweepInterval = 5 * time.Second
+)
+
 func main() {
 	sockServer = socketio.NewServer(
 		&engineio.Options{
@@ -70,6 +75,7 @@ func main() {
 	mux.HandleFunc("/create-lobby", handleCreateLobby)
 	mux.HandleFunc("/lobby/", handleLobbyRoutes)
 	mux.Handle("/socket.io/", sockServer)
+	startHeartbeatSweeper()
 
 	addr := ":3000"
 	log.Printf("Server listening on %s", addr)
@@ -218,6 +224,10 @@ func handleHeartbeat(w http.ResponseWriter, r *http.Request, code string) {
 	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
 	if !ok {
+		if reason, wasClosed := closedLobbies[code]; wasClosed {
+			respondJSON(w, http.StatusGone, map[string]string{"error": reason})
+			return
+		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
@@ -227,18 +237,23 @@ func handleHeartbeat(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "player not found", http.StatusNotFound)
 		return
 	}
-	now := time.Now()
+	now := time.Now().UTC()
+	if now.Sub(player.LastActive) > playerHeartbeatTimeout {
+		delete(l.Players, req.PlayerID)
+		log.Printf("player %s timed out in lobby %s", req.PlayerID, code)
+		if req.PlayerID == l.HostID {
+			closeLobbyForHostTimeoutLocked(code)
+			respondJSON(w, http.StatusGone, map[string]string{"error": "Host timed out"})
+			return
+		}
+		respondJSON(w, http.StatusGone, map[string]string{"error": "Player timed out"})
+		return
+	}
 	player.LastActive = now
 
-	for _, player := range l.Players {
-		if now.Sub(player.LastActive) > 15*time.Second {
-			delete(l.Players, player.ID) // timeout
-			log.Printf("player %s timed out", player.ID)
-			if player.ID == l.HostID {
-				closeLobbyForHostTimeout(w, code)
-				return
-			}
-		}
+	if pruneInactivePlayersLocked(code, l, now) {
+		respondJSON(w, http.StatusGone, map[string]string{"error": "Host timed out"})
+		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -481,11 +496,39 @@ func updatePlayerApples(code, playerID string, update func(*lobbyPlayer)) {
 	update(player)
 }
 
-func closeLobbyForHostTimeout(w http.ResponseWriter, code string) {
+func closeLobbyForHostTimeoutLocked(code string) {
 	closedLobbies[code] = "Host timed out"
 	delete(lobbies, code)
-	log.Println("Host timed out")
-	respondJSON(w, http.StatusGone, map[string]string{"status": "host_timed_out"})
+	log.Printf("host timed out for lobby %s", code)
+}
+
+func pruneInactivePlayersLocked(code string, l *lobby, now time.Time) bool {
+	for playerID, player := range l.Players {
+		if now.Sub(player.LastActive) <= playerHeartbeatTimeout {
+			continue
+		}
+		delete(l.Players, playerID)
+		log.Printf("player %s timed out in lobby %s", playerID, code)
+		if playerID == l.HostID {
+			closeLobbyForHostTimeoutLocked(code)
+			return true
+		}
+	}
+	return false
+}
+
+func startHeartbeatSweeper() {
+	ticker := time.NewTicker(heartbeatSweepInterval)
+	go func() {
+		defer ticker.Stop()
+		for now := range ticker.C {
+			lobbyMu.Lock()
+			for code, l := range lobbies {
+				pruneInactivePlayersLocked(code, l, now.UTC())
+			}
+			lobbyMu.Unlock()
+		}
+	}()
 }
 
 func lobbyToResponse(l *lobby) map[string]any {

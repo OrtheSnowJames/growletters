@@ -123,12 +123,16 @@ class _TreeState extends State<Tree> {
           onResult: (wasCorrect) {
             setState(() {
               if (wasCorrect) {
-                final nextIndex =
-                    (widget.dat.stage.index + 1).clamp(0, TreeStage.values.length - 1);
+                final nextIndex = (widget.dat.stage.index + 1).clamp(
+                  0,
+                  TreeStage.values.length - 1,
+                );
                 widget.dat.stage = TreeStage.values[nextIndex];
               } else {
-                final prevIndex =
-                    (widget.dat.stage.index - 1).clamp(0, TreeStage.values.length - 1);
+                final prevIndex = (widget.dat.stage.index - 1).clamp(
+                  0,
+                  TreeStage.values.length - 1,
+                );
                 widget.dat.stage = TreeStage.values[prevIndex];
               }
               _maybeStartHarvestTimer();
@@ -159,9 +163,6 @@ class _TreeState extends State<Tree> {
       return;
     }
     InventoryManager.addItem('banana', _bananas);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Collected $_bananas bananas!')),
-    );
     setState(() {
       _bananas = 0;
     });
@@ -233,10 +234,7 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
     if (!confirmed) return;
     if (session != null) {
       try {
-        await LobbyApi.instance.leaveLobby(
-          session.lobbyCode,
-          session.playerId,
-        );
+        await LobbyApi.instance.leaveLobby(session.lobbyCode, session.playerId);
       } catch (_) {}
       LobbySessionStore.instance.clear();
     }

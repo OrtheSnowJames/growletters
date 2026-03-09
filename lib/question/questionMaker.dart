@@ -54,9 +54,8 @@ class QuestionMaker {
     final availableWords = words ?? _allWords;
     if (availableWords.isEmpty) return [];
 
-    // Calculate maximum possible questions: words * question types
-    final maxPossibleQuestions =
-        availableWords.length * WordQuestionType.values.length;
+    // For now we only generate multiple-choice questions.
+    final maxPossibleQuestions = availableWords.length;
     final questionsToGenerate = count < maxPossibleQuestions
         ? count
         : maxPossibleQuestions;
@@ -136,7 +135,7 @@ class QuestionMaker {
   }
 
   WordQuestionType _randomType() {
-    final values = WordQuestionType.values;
-    return values[_random.nextInt(values.length)];
+    // Written questions are temporarily disabled.
+    return WordQuestionType.wordMultipleChoise;
   }
 }

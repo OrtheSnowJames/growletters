@@ -52,7 +52,9 @@ class LobbyApi {
   Future<LobbyInfo> fetchLobby(String code) async {
     final response = await http.get(_uri('/lobby/$code'));
     _throwIfNeeded(response);
-    return LobbyInfo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return LobbyInfo.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<List<LobbyPlayer>> fetchLeaderboard(String code) async {
@@ -131,6 +133,15 @@ class LobbyApi {
         debugPrint('Failed to report apples: $err');
       }
     }
+  }
+
+  Future<void> sendHeartbeat(String code, String playerId) async {
+    final response = await http.post(
+      _uri('/lobby/$code/heartbeat'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'playerId': playerId}),
+    );
+    _throwIfNeeded(response);
   }
 
   void _throwIfNeeded(http.Response response) {
