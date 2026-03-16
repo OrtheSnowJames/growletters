@@ -64,6 +64,7 @@ class LobbySession {
     required this.lobbyId,
     required this.lobbyCode,
     required this.playerId,
+    required this.authToken,
     required this.playerName,
     required this.isHost,
   });
@@ -71,6 +72,7 @@ class LobbySession {
   final String lobbyId;
   final String lobbyCode;
   final String playerId;
+  final String authToken;
   final String playerName;
   final bool isHost;
 
@@ -78,6 +80,7 @@ class LobbySession {
     String? lobbyId,
     String? lobbyCode,
     String? playerId,
+    String? authToken,
     String? playerName,
     bool? isHost,
   }) {
@@ -85,6 +88,7 @@ class LobbySession {
       lobbyId: lobbyId ?? this.lobbyId,
       lobbyCode: lobbyCode ?? this.lobbyCode,
       playerId: playerId ?? this.playerId,
+      authToken: authToken ?? this.authToken,
       playerName: playerName ?? this.playerName,
       isHost: isHost ?? this.isHost,
     );

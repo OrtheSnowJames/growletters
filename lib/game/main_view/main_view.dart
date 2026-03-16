@@ -118,7 +118,10 @@ class _MainViewState extends State<MainView> {
     if (session == null) return;
     _isPollingLobby = true;
     try {
-      final info = await LobbyApi.instance.fetchLobby(session.lobbyCode);
+      final info = await LobbyApi.instance.fetchLobby(
+        session.lobbyCode,
+        session: session,
+      );
       if (!mounted) return;
       final stillInLobby = info.players.any(
         (player) => player.id == session.playerId,
@@ -303,7 +306,7 @@ class _MainViewState extends State<MainView> {
     if (!confirmed) return;
     if (session != null) {
       try {
-        await LobbyApi.instance.leaveLobby(session.lobbyCode, session.playerId);
+        await LobbyApi.instance.leaveLobby(session);
       } catch (_) {}
       LobbySessionStore.instance.clear();
     }

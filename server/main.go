@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -28,6 +29,7 @@ type appleCountPayload struct {
 
 type lobbyPlayer struct {
 	ID         string    `json:"id"`
+	AuthToken  string    `json:"-"`
 	Name       string    `json:"name"`
 	Apples     int       `json:"apples"`
 	IsHost     bool      `json:"isHost"`
@@ -57,8 +59,8 @@ var (
 )
 
 const (
-	playerHeartbeatTimeout = 10 * time.Second
-	heartbeatSweepInterval = 5 * time.Second
+	playerHeartbeatTimeout = 45 * time.Second
+	heartbeatSweepInterval = 10 * time.Second
 )
 
 func main() {
@@ -106,10 +108,12 @@ func handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 
 	lobbyID := uuid.Must(uuid.NewV4()).String()
 	playerID := uuid.Must(uuid.NewV4()).String()
+	authToken := generateAuthToken()
 
 	now := time.Now().UTC()
 	player := &lobbyPlayer{
 		ID:         playerID,
+		AuthToken:  authToken,
 		Name:       req.PlayerName,
 		IsHost:     true,
 		JoinedAt:   now,
@@ -136,6 +140,7 @@ func handleCreateLobby(w http.ResponseWriter, r *http.Request) {
 		"lobbyId":   lobbyID,
 		"lobbyCode": code,
 		"playerId":  playerID,
+		"authToken": authToken,
 		"isHost":    true,
 	})
 }
@@ -174,10 +179,10 @@ func handleLobbyRoutes(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetLobby(w http.ResponseWriter, r *http.Request, code string) {
-	lobbyMu.RLock()
+	lobbyMu.Lock()
+	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
 	reason, wasClosed := closedLobbies[code]
-	lobbyMu.RUnlock()
 	if !ok {
 		if wasClosed {
 			respondJSON(w, http.StatusGone, map[string]string{"error": reason})
@@ -186,15 +191,18 @@ func handleGetLobby(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
+	if player, authorized := authorizedPlayerFromRequest(r, l, ""); authorized {
+		player.LastActive = time.Now().UTC()
+	}
 
 	respondJSON(w, http.StatusOK, lobbyToResponse(l))
 }
 
 func handleLeaderboard(w http.ResponseWriter, r *http.Request, code string) {
-	lobbyMu.RLock()
+	lobbyMu.Lock()
+	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
 	reason, wasClosed := closedLobbies[code]
-	lobbyMu.RUnlock()
 	if !ok {
 		if wasClosed {
 			respondJSON(w, http.StatusGone, map[string]string{"error": reason})
@@ -202,6 +210,9 @@ func handleLeaderboard(w http.ResponseWriter, r *http.Request, code string) {
 		}
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
+	}
+	if player, authorized := authorizedPlayerFromRequest(r, l, ""); authorized {
+		player.LastActive = time.Now().UTC()
 	}
 
 	players := lobbyPlayersSlice(l)
@@ -213,10 +224,10 @@ func handleLeaderboard(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleHeartbeat(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID string `json:"playerId"`
+		AuthToken string `json:"authToken"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
-		http.Error(w, "playerId required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
@@ -232,16 +243,16 @@ func handleHeartbeat(w http.ResponseWriter, r *http.Request, code string) {
 		return
 	}
 
-	player, ok := l.Players[req.PlayerID]
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
 	if !ok {
-		http.Error(w, "player not found", http.StatusNotFound)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	now := time.Now().UTC()
 	if now.Sub(player.LastActive) > playerHeartbeatTimeout {
-		delete(l.Players, req.PlayerID)
-		log.Printf("player %s timed out in lobby %s", req.PlayerID, code)
-		if req.PlayerID == l.HostID {
+		delete(l.Players, player.ID)
+		log.Printf("player %s timed out in lobby %s", player.ID, code)
+		if player.ID == l.HostID {
 			closeLobbyForHostTimeoutLocked(code)
 			respondJSON(w, http.StatusGone, map[string]string{"error": "Host timed out"})
 			return
@@ -283,10 +294,12 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 		return
 	}
 	playerID := uuid.Must(uuid.NewV4()).String()
+	authToken := generateAuthToken()
 	now := time.Now().UTC()
 	l.JoinCounter++
 	l.Players[playerID] = &lobbyPlayer{
 		ID:         playerID,
+		AuthToken:  authToken,
 		Name:       req.PlayerName,
 		JoinedAt:   now,
 		JoinOrder:  l.JoinCounter,
@@ -297,6 +310,7 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 		"lobbyId":   l.ID,
 		"lobbyCode": l.Code,
 		"playerId":  playerID,
+		"authToken": authToken,
 		"isHost":    false,
 		"players":   lobbyPlayersSlice(l),
 	})
@@ -304,10 +318,10 @@ func handleJoinLobby(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleStartLobby(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID string `json:"playerId"`
+		AuthToken string `json:"authToken"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
-		http.Error(w, "playerId required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
@@ -318,7 +332,13 @@ func handleStartLobby(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
-	if l.HostID != req.PlayerID {
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	player.LastActive = time.Now().UTC()
+	if l.HostID != player.ID {
 		http.Error(w, "only host can start lobby", http.StatusForbidden)
 		return
 	}
@@ -334,11 +354,11 @@ func handleStartLobby(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleSetTimeLimit(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID         string `json:"playerId"`
+		AuthToken        string `json:"authToken"`
 		TimeLimitSeconds int    `json:"timeLimitSeconds"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
-		http.Error(w, "playerId required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 	if req.TimeLimitSeconds <= 0 {
@@ -353,7 +373,13 @@ func handleSetTimeLimit(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
-	if l.HostID != req.PlayerID {
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	player.LastActive = time.Now().UTC()
+	if l.HostID != player.ID {
 		http.Error(w, "only host can set time limit", http.StatusForbidden)
 		return
 	}
@@ -368,10 +394,10 @@ func handleSetTimeLimit(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleEndLobby(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID string `json:"playerId"`
+		AuthToken string `json:"authToken"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
-		http.Error(w, "playerId required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
@@ -382,7 +408,13 @@ func handleEndLobby(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
-	if l.HostID != req.PlayerID {
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	player.LastActive = time.Now().UTC()
+	if l.HostID != player.ID {
 		http.Error(w, "only host can end game", http.StatusForbidden)
 		return
 	}
@@ -402,12 +434,14 @@ func handleEndLobby(w http.ResponseWriter, r *http.Request, code string) {
 
 func handleLeaveLobby(w http.ResponseWriter, r *http.Request, code string) {
 	var req struct {
-		PlayerID string `json:"playerId"`
+		PlayerID  string `json:"playerId"`
+		AuthToken string `json:"authToken"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PlayerID == "" {
-		http.Error(w, "playerId required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+
 	lobbyMu.Lock()
 	defer lobbyMu.Unlock()
 	l, ok := lobbies[code]
@@ -415,18 +449,45 @@ func handleLeaveLobby(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
-	if l.HostID == req.PlayerID {
+
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	player.LastActive = time.Now().UTC()
+
+	targetPlayerID := strings.TrimSpace(req.PlayerID)
+	if targetPlayerID == "" {
+		targetPlayerID = player.ID
+	}
+
+	if targetPlayerID != player.ID && player.ID != l.HostID {
+		http.Error(w, "only host can remove other players", http.StatusForbidden)
+		return
+	}
+
+	targetPlayer, exists := l.Players[targetPlayerID]
+	if !exists {
+		http.Error(w, "player not found", http.StatusNotFound)
+		return
+	}
+
+	if targetPlayer.ID == l.HostID {
 		closedLobbies[code] = "Host disconnected"
 		delete(lobbies, code)
 		log.Println("Host Disconnected")
 	} else {
-		delete(l.Players, req.PlayerID)
+		delete(l.Players, targetPlayerID)
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "left"})
 }
 
 func handleApplesUpdate(w http.ResponseWriter, r *http.Request, code string) {
-	var req appleCountPayload
+	var req struct {
+		AuthToken string `json:"authToken"`
+		Apples    int    `json:"apples"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
@@ -442,12 +503,14 @@ func handleApplesUpdate(w http.ResponseWriter, r *http.Request, code string) {
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
-	player, ok := l.Players[req.PlayerID]
+
+	player, ok := authorizedPlayerFromRequest(r, l, req.AuthToken)
 	if !ok {
-		http.Error(w, "player not found", http.StatusNotFound)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	player.Apples = req.Apples
+	player.LastActive = time.Now().UTC()
 	respondJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
@@ -576,6 +639,36 @@ func sortPlayersByApples(players []map[string]any) {
 	}
 }
 
+func bearerTokenFromHeader(r *http.Request) string {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	token := strings.TrimSpace(parts[1])
+	return token
+}
+
+func authorizedPlayerFromRequest(r *http.Request, l *lobby, bodyToken string) (*lobbyPlayer, bool) {
+	token := strings.TrimSpace(bodyToken)
+	if headerToken := bearerTokenFromHeader(r); headerToken != "" {
+		token = headerToken
+	}
+	if token == "" {
+		return nil, false
+	}
+	for _, player := range l.Players {
+		if player.AuthToken == token {
+			return player, true
+		}
+	}
+	return nil, false
+}
+
+func generateAuthToken() string {
+	return uuid.Must(uuid.NewV4()).String()
+}
+
 func generateCode() string {
 	const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	rand.Seed(time.Now().UnixNano())
@@ -589,7 +682,7 @@ func generateCode() string {
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

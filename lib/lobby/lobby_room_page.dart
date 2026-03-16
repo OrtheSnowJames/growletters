@@ -58,7 +58,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
       if (!_navigatedToGame) {
         LobbyApi.instance.sendLeaveBeacon(
           widget.session.lobbyCode,
-          widget.session.playerId,
+          widget.session.authToken,
         );
       }
     });
@@ -107,17 +107,17 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     _autoEndTimer?.cancel();
     _unloadDisposer?.call();
     if (!_navigatedToGame && !_isExiting) {
-      LobbyApi.instance.leaveLobby(
-        widget.session.lobbyCode,
-        widget.session.playerId,
-      );
+      LobbyApi.instance.leaveLobby(widget.session);
     }
     super.dispose();
   }
 
   Future<void> _fetch() async {
     try {
-      final info = await LobbyApi.instance.fetchLobby(widget.session.lobbyCode);
+      final info = await LobbyApi.instance.fetchLobby(
+        widget.session.lobbyCode,
+        session: widget.session,
+      );
       if (!mounted) return;
       final stillInLobby = info.players.any(
         (player) => player.id == widget.session.playerId,
@@ -146,7 +146,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
         _error = null;
       });
       _scheduleAutoEndIfNeeded(info);
-    } on LobbyClosedException catch (err) {
+    } on LobbyClosedException {
       if (!mounted) return;
       await _forceReturnToLobby(showDialog: true);
     } catch (err) {
@@ -160,10 +160,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   Future<void> _startGame() async {
     setState(() => _isStarting = true);
     try {
-      await LobbyApi.instance.startLobby(
-        widget.session.lobbyCode,
-        widget.session.playerId,
-      );
+      await LobbyApi.instance.startLobby(widget.session);
       if (!mounted) return;
       await _fetch();
     } catch (err) {
@@ -182,11 +179,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     if (_isUpdatingTimeLimit) return;
     setState(() => _isUpdatingTimeLimit = true);
     try {
-      await LobbyApi.instance.setTimeLimit(
-        widget.session.lobbyCode,
-        widget.session.playerId,
-        seconds,
-      );
+      await LobbyApi.instance.setTimeLimit(widget.session, seconds);
       await _fetch();
     } catch (err) {
       if (!mounted) return;
@@ -204,10 +197,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     if (_isEndingGame) return;
     setState(() => _isEndingGame = true);
     try {
-      await LobbyApi.instance.endLobby(
-        widget.session.lobbyCode,
-        widget.session.playerId,
-      );
+      await LobbyApi.instance.endLobby(widget.session);
       _localEndedAt = DateTime.now().toUtc();
       await _fetch();
     } catch (err) {
@@ -261,7 +251,10 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
       if (!confirmed) return;
     }
     try {
-      await LobbyApi.instance.leaveLobby(widget.session.lobbyCode, player.id);
+      await LobbyApi.instance.leaveLobby(
+        widget.session,
+        targetPlayerId: player.id,
+      );
       await _fetch();
     } catch (err) {
       if (!mounted) return;
@@ -276,9 +269,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove player?'),
-        content: Text(
-          'Remove ${player.name} from the lobby?',
-        ),
+        content: Text('Remove ${player.name} from the lobby?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -319,10 +310,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
   }
 
   Future<bool> _confirmExit() async {
-    return showLobbyExitDialog(
-      context,
-      showHostWarning: widget.session.isHost,
-    );
+    return showLobbyExitDialog(context, showHostWarning: widget.session.isHost);
   }
 
   Future<void> _exitLobby() async {
@@ -331,10 +319,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     if (!confirmed) return;
     _isExiting = true;
     try {
-      await LobbyApi.instance.leaveLobby(
-        widget.session.lobbyCode,
-        widget.session.playerId,
-      );
+      await LobbyApi.instance.leaveLobby(widget.session);
     } catch (_) {}
     LobbySessionStore.instance.clear();
     if (!mounted) return;
@@ -350,6 +335,13 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     LobbySessionStore.instance.clear();
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _openHowToPlay() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const _HowToPlayDialog(),
+    );
   }
 
   @override
@@ -399,49 +391,54 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   if (widget.session.isHost) ...[
-                                      Flexible(
-                                        fit: FlexFit.loose,
-                                        child: LobbyHeader(info: info),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      TimeLimitCard(
-                                        timeLimitSeconds: info.timeLimitSeconds,
-                                        startedAt: effectiveStartedAt,
-                                        canEdit: !showResults,
-                                        isStarted: showResults ||
-                                            _isUpdatingTimeLimit,
-                                        onChanged: _updateTimeLimitSeconds,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Expanded(
-                                        child: Align(
-                                          alignment: Alignment.center,
-                                          child: SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              style: ElevatedButton.styleFrom(
-                                                minimumSize:
-                                                    const Size.fromHeight(56),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  vertical: 16,
-                                                ),
-                                              ),
-                                              onPressed: showResults ||
-                                                      _isStarting
-                                                  ? null
-                                                  : _startGame,
-                                              child: Text(
-                                                showResults
-                                                    ? 'Starting...'
-                                                    : 'Start Game',
-                                              ),
+                                    Flexible(
+                                      fit: FlexFit.loose,
+                                      child: LobbyHeader(info: info),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    TimeLimitCard(
+                                      timeLimitSeconds: info.timeLimitSeconds,
+                                      startedAt: effectiveStartedAt,
+                                      canEdit: !showResults,
+                                      isStarted:
+                                          showResults || _isUpdatingTimeLimit,
+                                      onChanged: _updateTimeLimitSeconds,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: _openHowToPlay,
+                                      icon: const Icon(Icons.help_outline),
+                                      label: const Text('How 2 Play'),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Expanded(
+                                      child: Align(
+                                        alignment: Alignment.center,
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              minimumSize:
+                                                  const Size.fromHeight(56),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 16,
+                                                  ),
+                                            ),
+                                            onPressed:
+                                                showResults || _isStarting
+                                                ? null
+                                                : _startGame,
+                                            child: Text(
+                                              showResults
+                                                  ? 'Starting...'
+                                                  : 'Start Game',
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ]
-                                  else ...[
+                                    ),
+                                  ] else ...[
                                     LobbyHeader(info: info),
                                     const SizedBox(height: 16),
                                     TimeLimitCard(
@@ -451,14 +448,21 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                       isStarted: info.started,
                                       onChanged: null,
                                     ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: _openHowToPlay,
+                                      icon: const Icon(Icons.help_outline),
+                                      label: const Text('How 2 Play'),
+                                    ),
                                     const SizedBox(height: 16),
                                     Text(
                                       info.started
                                           ? 'Game is starting…'
                                           : 'Waiting for host to start the game.',
                                       textAlign: TextAlign.center,
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge,
                                     ),
                                     const SizedBox(height: 12),
                                     if (info.started)
@@ -475,10 +479,9 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                                     ),
                                     const SizedBox(height: 12),
                                     OutlinedButton(
-                                      onPressed:
-                                          _isEndingGame || !info.started
-                                              ? null
-                                              : _endGame,
+                                      onPressed: _isEndingGame || !info.started
+                                          ? null
+                                          : _endGame,
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: Colors.redAccent,
                                       ),
@@ -526,6 +529,209 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _HowToPlayDialog extends StatefulWidget {
+  const _HowToPlayDialog();
+
+  @override
+  State<_HowToPlayDialog> createState() => _HowToPlayDialogState();
+}
+
+class _HowToPlayDialogState extends State<_HowToPlayDialog> {
+  final PageController _pageController = PageController();
+  int _pageIndex = 0;
+
+  static const List<_HowToStep> _steps = [
+    _HowToStep(
+      title: 'Apple Demand',
+      description:
+          'Whoever gets the most apples wins. Apples get more expensive over '
+          'time, so you need bananas to keep up with demand.',
+      artwork: _HowToSingleImage(assetPath: 'assets/apple.png'),
+    ),
+    _HowToStep(
+      title: 'Grow Your Seed',
+      description:
+          'Plant a seed, then click it to answer questions. Each correct '
+          'answer grows the seed into a tree.',
+      artwork: _HowToSingleImage(assetPath: 'assets/seed.png'),
+    ),
+    _HowToStep(
+      title: 'Harvest Bananas',
+      description:
+          'Once your tree is grown, click the tree to harvest bananas.',
+      artwork: _HowToSingleImage(assetPath: 'assets/grown.png'),
+    ),
+    _HowToStep(
+      title: 'Scale Up Fast',
+      description:
+          'Grow all your trees as fast as possible. Use the Trading Post to '
+          'buy more seeds and convert bananas into apples.',
+      artwork: _HowToTreeGroup(),
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  int get _lastPageIndex => _steps.length - 1;
+  bool get _isLastPage => _pageIndex == _lastPageIndex;
+
+  void _goToPage(int page) {
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _goBack() {
+    if (_pageIndex == 0) return;
+    _goToPage(_pageIndex - 1);
+  }
+
+  void _goForwardOrClose() {
+    if (_isLastPage) {
+      Navigator.of(context).pop();
+      return;
+    }
+    _goToPage(_pageIndex + 1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('How 2 Play'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 320,
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _steps.length,
+                onPageChanged: (index) => setState(() => _pageIndex = index),
+                itemBuilder: (context, index) =>
+                    _HowToStepPage(step: _steps[index]),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                _steps.length,
+                (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: _pageIndex == index ? 24 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _pageIndex == index
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white24,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _pageIndex == 0 ? null : _goBack,
+          child: const Text('Back'),
+        ),
+        TextButton(
+          onPressed: _goForwardOrClose,
+          child: Text(_isLastPage ? 'Done' : 'Next'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HowToStep {
+  const _HowToStep({
+    required this.title,
+    required this.description,
+    required this.artwork,
+  });
+
+  final String title;
+  final String description;
+  final Widget artwork;
+}
+
+class _HowToStepPage extends StatelessWidget {
+  const _HowToStepPage({required this.step});
+
+  final _HowToStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        step.artwork,
+        const SizedBox(height: 20),
+        Text(
+          step.title,
+          textAlign: TextAlign.center,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          step.description,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      ],
+    );
+  }
+}
+
+class _HowToSingleImage extends StatelessWidget {
+  const _HowToSingleImage({required this.assetPath, this.height = 120});
+
+  final String assetPath;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      assetPath,
+      height: height,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.none,
+    );
+  }
+}
+
+class _HowToTreeGroup extends StatelessWidget {
+  const _HowToTreeGroup();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        _HowToSingleImage(assetPath: 'assets/branchy.png', height: 80),
+        _HowToSingleImage(assetPath: 'assets/sapling.png', height: 80),
+        _HowToSingleImage(assetPath: 'assets/grown.png', height: 80),
+      ],
     );
   }
 }

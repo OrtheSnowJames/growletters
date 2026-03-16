@@ -234,7 +234,7 @@ class _TreeQuestionScreenState extends State<_TreeQuestionScreen> {
     if (!confirmed) return;
     if (session != null) {
       try {
-        await LobbyApi.instance.leaveLobby(session.lobbyCode, session.playerId);
+        await LobbyApi.instance.leaveLobby(session);
       } catch (_) {}
       LobbySessionStore.instance.clear();
     }

@@ -40,10 +40,7 @@ class LobbyHeartbeat {
 
     _sending = true;
     try {
-      await LobbyApi.instance.sendHeartbeat(
-        session.lobbyCode,
-        session.playerId,
-      );
+      await LobbyApi.instance.sendHeartbeat(session);
     } catch (_) {
       // State transition is handled by lobby polling and closed-lobby responses.
     } finally {

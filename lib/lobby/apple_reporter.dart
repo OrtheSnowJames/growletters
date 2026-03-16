@@ -26,10 +26,6 @@ class AppleReporter {
     final apples = InventoryManager.counts['ananab'] ?? 0;
     if (_lastSent == apples) return;
     _lastSent = apples;
-    LobbyApi.instance.reportApples(
-      session.lobbyCode,
-      session.playerId,
-      apples,
-    );
+    LobbyApi.instance.reportApples(session, apples);
   }
 }
