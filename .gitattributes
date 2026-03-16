@@ -1,0 +1,13 @@
+# Ignore build systems
+CMakeLists.txt linguist-vendored
+*.cmake linguist-vendored
+
+# Ignore generated Flutter files
+ios/** linguist-vendored
+android/** linguist-vendored
+linux/** linguist-vendored
+windows/** linguist-vendored
+macos/** linguist-vendored
+
+# Ignore HTML templates if needed
+*.html linguist-vendored
