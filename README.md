@@ -4,6 +4,10 @@ This is a game about growing apples.
 "Why not just make apple trees?"
 seems too boring
 
+Grow letters (or grow bananas depending on if you're sharing the game)
+is a multiplayer vocab game where players grow banana trees,
+trade bananas for apples, and compete in an unstable apple economy.
+
 In this game, you grow bananas to trade for apples in multiplayer.
 But as the economy goes, there's so much demand for a limited supply of apples.
 So prices go up exponentially until apples are practically inaffordable.

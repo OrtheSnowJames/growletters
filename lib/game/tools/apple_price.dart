@@ -6,7 +6,7 @@ int applePrice(double secondsPassed) {
 
   /*
   Calculator equation:
-  5 * (1 + x / 20)^1.4
+  5 * (1 + x / 20)^1.3
   where x is the number of seconds passed.
 
   Approximate values:

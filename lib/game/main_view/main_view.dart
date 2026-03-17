@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../trading_post/tradingPostUI.dart';
+import '../trading_post/item.dart';
+import '../trading_post/item_registry.dart';
 import '../tools/apple_price_ticker.dart';
 import '../inventory/inventory_manager.dart';
 import '../../theme/palette.dart';
@@ -31,10 +34,7 @@ class MainView extends StatefulWidget {
 }
 
 class _MainViewState extends State<MainView> {
-  final List<TreeData> _trees = List<TreeData>.generate(
-    6,
-    (_) => TreeData.basic(),
-  );
+  final List<TreeData> _trees = [];
 
   final ScrollController _scrollController = ScrollController();
   double _currentOffset = 0;
@@ -47,6 +47,7 @@ class _MainViewState extends State<MainView> {
   @override
   void initState() {
     super.initState();
+    initializeTradingPostItemsAndInventory();
     _priceTicker.attach();
     _scrollController.addListener(_handleScrollChanged);
     if (widget.startedAt != null) {
@@ -103,6 +104,7 @@ class _MainViewState extends State<MainView> {
 
   void _checkForTimeExpiry() {
     if (_navigatedToResults) return;
+    if (!_isCurrentRoute) return;
     final startedAt = widget.startedAt;
     if (startedAt == null) return;
     final endAt = startedAt.add(Duration(seconds: widget.timeLimitSeconds));
@@ -114,6 +116,7 @@ class _MainViewState extends State<MainView> {
 
   Future<void> _pollLobbyStatus() async {
     if (_isPollingLobby || _navigatedToResults) return;
+    if (!_isCurrentRoute) return;
     final session = widget.session;
     if (session == null) return;
     _isPollingLobby = true;
@@ -158,6 +161,11 @@ class _MainViewState extends State<MainView> {
     );
   }
 
+  bool get _isCurrentRoute {
+    final route = ModalRoute.of(context);
+    return route?.isCurrent ?? true;
+  }
+
   Future<void> _forceReturnToLobby({bool showDialog = false}) async {
     if (!mounted) return;
     if (showDialog) {
@@ -172,13 +180,35 @@ class _MainViewState extends State<MainView> {
       context,
       MaterialPageRoute(
         builder: (_) => TradingPost(
-          onTreeSeedPurchased: _handleTreeSeedPurchase,
           onExit: _exitToLobby,
           timeLimitSeconds: widget.timeLimitSeconds,
           startedAt: widget.startedAt,
         ),
       ),
     );
+  }
+
+  void _openInventory() {
+    showDialog<void>(
+      context: context,
+      builder: (_) =>
+          _InventoryDialog(onItemAction: _handleInventoryItemAction),
+    );
+  }
+
+  void _handleInventoryItemAction(Item item) {
+    switch (item.actionType) {
+      case ItemActionType.none:
+        return;
+      case ItemActionType.eat:
+        InventoryManager.spendItem(item.id, 1);
+        return;
+      case ItemActionType.plantTree:
+        final planted = InventoryManager.spendItem(item.id, 1);
+        if (!planted) return;
+        _handleTreeSeedPurchase();
+        return;
+    }
   }
 
   Future<bool> _confirmExitGame() async {
@@ -223,7 +253,19 @@ class _MainViewState extends State<MainView> {
                     border: Border.all(color: Colors.white10),
                   ),
                   padding: const EdgeInsets.all(12),
-                  child: Trees(treeData: _trees, controller: _scrollController),
+                  child: _trees.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Plant some trees from your inventory!',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        )
+                      : Trees(treeData: _trees, controller: _scrollController),
                 ),
               ),
               const SizedBox(height: 16),
@@ -248,6 +290,11 @@ class _MainViewState extends State<MainView> {
                       ElevatedButton(
                         onPressed: _openTradingPost,
                         child: const Text('Trading Post'),
+                      ),
+                      const SizedBox(width: 20),
+                      ElevatedButton(
+                        onPressed: _openInventory,
+                        child: const Text('Inventory'),
                       ),
                       if (widget.showHostWarning && widget.session != null) ...[
                         const SizedBox(width: 20),
@@ -312,6 +359,165 @@ class _MainViewState extends State<MainView> {
     }
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+}
+
+class _InventoryDialog extends StatelessWidget {
+  const _InventoryDialog({required this.onItemAction});
+
+  final ValueChanged<Item> onItemAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Inventory'),
+      content: SizedBox(
+        width: 460,
+        child: ValueListenableBuilder<Map<String, int>>(
+          valueListenable: InventoryManager.listenable,
+          builder: (context, counts, _) {
+            final inventoryItems =
+                counts.entries
+                    .where((entry) => entry.value > 0)
+                    .map((entry) {
+                      final item = ItemRegistry.getById(entry.key);
+                      if (item == null) return null;
+                      return (item: item, count: entry.value);
+                    })
+                    .whereType<({Item item, int count})>()
+                    .toList()
+                  ..sort((a, b) => a.item.label.compareTo(b.item.label));
+            if (inventoryItems.isEmpty) {
+              return const Text('poor :)');
+            }
+
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: inventoryItems
+                      .map(
+                        (entry) => _InventoryActionTile(
+                          item: entry.item,
+                          count: entry.count,
+                          actionLabel: _actionLabelFor(entry.item),
+                          onAction: () => onItemAction(entry.item),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  String? _actionLabelFor(Item item) {
+    if (item.actionType == ItemActionType.none) {
+      return null;
+    }
+    return item.actionLabel ?? _defaultActionLabel(item.actionType);
+  }
+
+  String _defaultActionLabel(ItemActionType actionType) {
+    switch (actionType) {
+      case ItemActionType.none:
+        return '';
+      case ItemActionType.eat:
+        return 'Eat';
+      case ItemActionType.plantTree:
+        return 'Plant';
+    }
+  }
+}
+
+class _InventoryActionTile extends StatefulWidget {
+  const _InventoryActionTile({
+    required this.item,
+    required this.count,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final Item item;
+  final int count;
+  final String? actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  State<_InventoryActionTile> createState() => _InventoryActionTileState();
+}
+
+class _InventoryActionTileState extends State<_InventoryActionTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final showAction = widget.actionLabel != null && (_hovering || !kIsWeb);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: widget.item.buildImage(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.item.label,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    widget.item.description,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('x${widget.count}'),
+                ],
+              ),
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 120),
+              child: showAction
+                  ? ElevatedButton(
+                      key: ValueKey(widget.item.id),
+                      onPressed: widget.onAction,
+                      child: Text(widget.actionLabel!),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

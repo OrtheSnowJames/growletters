@@ -106,7 +106,7 @@ class _LobbyRoomPageState extends State<LobbyRoomPage> {
     _timeTicker?.cancel();
     _autoEndTimer?.cancel();
     _unloadDisposer?.call();
-    if (!_navigatedToGame && !_isExiting) {
+    if (!widget.returnToGameOnPlay && !_navigatedToGame && !_isExiting) {
       LobbyApi.instance.leaveLobby(widget.session);
     }
     super.dispose();
@@ -555,8 +555,9 @@ class _HowToPlayDialogState extends State<_HowToPlayDialog> {
     _HowToStep(
       title: 'Grow Your Seed',
       description:
-          'Plant a seed, then click it to answer questions. Each correct '
-          'answer grows the seed into a tree.',
+          'Buy seeds in the Trading Post, open your Inventory, and press '
+          'Plant. Then click the planted seed to answer questions. Each '
+          'correct answer grows it into a tree.',
       artwork: _HowToSingleImage(assetPath: 'assets/seed.png'),
     ),
     _HowToStep(
@@ -568,8 +569,9 @@ class _HowToPlayDialogState extends State<_HowToPlayDialog> {
     _HowToStep(
       title: 'Scale Up Fast',
       description:
-          'Grow all your trees as fast as possible. Use the Trading Post to '
-          'buy more seeds and convert bananas into apples.',
+          'Keep planting seeds from Inventory and grow all your trees as fast '
+          'as possible. Use the Trading Post to buy more seeds and convert '
+          'bananas into apples.',
       artwork: _HowToTreeGroup(),
     ),
   ];

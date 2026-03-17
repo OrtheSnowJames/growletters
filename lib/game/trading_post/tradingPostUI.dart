@@ -10,27 +10,97 @@ import '../tools/apple_price_ticker.dart';
 import '../../theme/palette.dart';
 
 const double _tradeItemImageSize = 72;
+const List<ItemDefinition> kDefaultTradingPostItemDefinitions = [
+  ItemDefinition(
+    id: 'banana',
+    assetPath: 'assets/banana.png',
+    label: 'Banana',
+    description: 'Harvested from your banana trees.',
+    initialCount: 5,
+    actionType: ItemActionType.eat,
+    actionLabel: 'Eat',
+  ),
+  ItemDefinition(
+    id: 'ananab',
+    assetPath: 'assets/apple.png',
+    label: 'Apple',
+    description: 'Sell these to score points.',
+    initialCount: 1,
+    actionType: ItemActionType.eat,
+    actionLabel: 'Eat',
+  ),
+  ItemDefinition(
+    id: 'tree_seed',
+    assetPath: 'assets/seed.png',
+    label: 'Tree Seed',
+    description: 'Plant this to grow another tree.',
+    initialCount: 8,
+    actionType: ItemActionType.plantTree,
+    actionLabel: 'Plant',
+  ),
+];
+
+const List<TradeDefinition> kDefaultTradingPostTradeDefinitions = [
+  TradeDefinition(
+    giveItemId: 'banana',
+    giveCount: 1,
+    receiveItemId: 'ananab',
+    receiveCount: 1,
+    useMarketPrice: true,
+  ),
+  TradeDefinition(
+    giveItemId: 'ananab',
+    giveCount: 1,
+    receiveItemId: 'tree_seed',
+    receiveCount: 1,
+  ),
+];
+
+void initializeTradingPostItemsAndInventory([
+  List<ItemDefinition> itemDefinitions = kDefaultTradingPostItemDefinitions,
+]) {
+  final itemMap = <String, Item>{};
+  final initialCounts = <String, int>{};
+
+  for (final definition in itemDefinitions) {
+    itemMap[definition.id] = Item(
+      id: definition.id,
+      assetPath: definition.assetPath,
+      label: definition.label,
+      description: definition.description,
+      actionType: definition.actionType,
+      actionLabel: definition.actionLabel,
+    );
+    if (definition.initialCount > 0) {
+      initialCounts[definition.id] = definition.initialCount;
+    }
+  }
+
+  ItemRegistry.setItems(itemMap);
+  InventoryManager.initializeIfEmpty(initialCounts);
+}
 
 class TradingPost extends StatefulWidget {
   const TradingPost({
     super.key,
-    this.onTreeSeedPurchased,
     this.onExit,
     this.timeLimitSeconds = 600,
     this.startedAt,
+    this.itemDefinitions = kDefaultTradingPostItemDefinitions,
+    this.tradeDefinitions = kDefaultTradingPostTradeDefinitions,
   });
 
-  final VoidCallback? onTreeSeedPurchased;
   final Future<void> Function()? onExit;
   final int timeLimitSeconds;
   final DateTime? startedAt;
+  final List<ItemDefinition> itemDefinitions;
+  final List<TradeDefinition> tradeDefinitions;
 
   @override
   State<TradingPost> createState() => _TradingPostState();
 }
 
 class _TradingPostState extends State<TradingPost> {
-  late final List<TradeDefinition> _tradeDefinitions;
   final ApplePriceTicker _priceTicker = ApplePriceTicker.instance;
   Timer? _timeTicker;
 
@@ -45,35 +115,7 @@ class _TradingPostState extends State<TradingPost> {
         }
       });
     }
-    _tradeDefinitions = [
-      const TradeDefinition(
-        giveItemId: 'banana',
-        giveCount: 1,
-        receiveItemId: 'ananab',
-        receiveCount: 1,
-      ),
-    ];
-    _createExampleImages();
-  }
-
-  Future<void> _createExampleImages() async {
-    final image1 = _buildItemImage('assets/banana.png');
-    final image2 = _buildItemImage('assets/apple.png');
-    final image3 = _buildItemImage('assets/seed.png');
-
-    if (!mounted) return;
-    setState(() {
-      ItemRegistry.setItems({
-        'banana': Item(id: 'banana', image: image1, description: 'banana'),
-        'ananab': Item(id: 'ananab', image: image2, description: 'apple'),
-        'tree_seed': Item(
-          id: 'tree_seed',
-          image: image3,
-          description: 'tree seed',
-        ),
-      });
-      InventoryManager.initializeIfEmpty({'banana': 5, 'ananab': 1});
-    });
+    _initializeItems();
   }
 
   @override
@@ -97,43 +139,10 @@ class _TradingPostState extends State<TradingPost> {
               return ValueListenableBuilder<Map<String, int>>(
                 valueListenable: InventoryManager.listenable,
                 builder: (context, counts, __) {
-                  final trades =
-                      _tradeDefinitions.fold<List<TradeData>>([], (
-                        list,
-                        definition,
-                      ) {
-                        final giveItem = ItemRegistry.getById(
-                          definition.giveItemId,
-                        );
-                        final receiveItem = ItemRegistry.getById(
-                          definition.receiveItemId,
-                        );
-                        if (giveItem == null || receiveItem == null) {
-                          return list;
-                        }
-                        final giveAvailable =
-                            counts[definition.giveItemId] ?? 0;
-                        return list..add(
-                          TradeData(
-                            giveItemId: definition.giveItemId,
-                            giveCount: tradePrice,
-                            receiveItemId: definition.receiveItemId,
-                            receiveCount: definition.receiveCount,
-                            canTrade: giveAvailable >= tradePrice,
-                            onTrade: () =>
-                                _performTrade(definition, tradePrice),
-                          ),
-                        );
-                      })..add(
-                        TradeData(
-                          giveItemId: 'ananab',
-                          giveCount: 1,
-                          receiveItemId: 'tree_seed',
-                          receiveCount: 1,
-                          canTrade: (counts['ananab'] ?? 0) >= 1,
-                          onTrade: _performTreeSeedTrade,
-                        ),
-                      );
+                  final trades = _buildTrades(
+                    tradePrice: tradePrice,
+                    counts: counts,
+                  );
 
                   return Stack(
                     children: [
@@ -236,28 +245,49 @@ class _TradingPostState extends State<TradingPost> {
     );
   }
 
-  void _performTrade(TradeDefinition definition, int price) {
-    final success = InventoryManager.spendItem(definition.giveItemId, price);
+  void _initializeItems() {
+    initializeTradingPostItemsAndInventory(widget.itemDefinitions);
+  }
+
+  List<TradeData> _buildTrades({
+    required int tradePrice,
+    required Map<String, int> counts,
+  }) {
+    return widget.tradeDefinitions.fold<List<TradeData>>([], (
+      list,
+      definition,
+    ) {
+      final giveItem = ItemRegistry.getById(definition.giveItemId);
+      final receiveItem = ItemRegistry.getById(definition.receiveItemId);
+      if (giveItem == null || receiveItem == null) {
+        return list;
+      }
+      final effectiveGiveCount = definition.useMarketPrice
+          ? tradePrice
+          : definition.giveCount;
+      final giveAvailable = counts[definition.giveItemId] ?? 0;
+      return list..add(
+        TradeData(
+          giveItemId: definition.giveItemId,
+          giveCount: effectiveGiveCount,
+          receiveItemId: definition.receiveItemId,
+          receiveCount: definition.receiveCount,
+          canTrade: giveAvailable >= effectiveGiveCount,
+          onTrade: () => _performTrade(definition, effectiveGiveCount),
+        ),
+      );
+    });
+  }
+
+  void _performTrade(TradeDefinition definition, int effectiveGiveCount) {
+    final success = InventoryManager.spendItem(
+      definition.giveItemId,
+      effectiveGiveCount,
+    );
     if (!success) {
       return;
     }
     InventoryManager.addItem(definition.receiveItemId, definition.receiveCount);
-  }
-
-  void _performTreeSeedTrade() {
-    final success = InventoryManager.spendItem('ananab', 1);
-    if (!success) {
-      return;
-    }
-    widget.onTreeSeedPurchased?.call();
-  }
-
-  Image _buildItemImage(String assetPath) {
-    return Image.asset(
-      assetPath,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.none,
-    );
   }
 }
 
@@ -346,24 +376,29 @@ class SingleItem extends StatelessWidget {
         SizedBox(
           width: _tradeItemImageSize,
           height: _tradeItemImageSize,
-          child: FittedBox(fit: BoxFit.contain, child: item.image),
+          child: FittedBox(fit: BoxFit.contain, child: item.buildImage()),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              item.description,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              item.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
+              item.description,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            Text(
               'x${addCommas(count)}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
           ],
         ),
